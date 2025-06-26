@@ -1,26 +1,28 @@
-name: .gitignore check
+name: 🔍 Check .gitignore
 
 on:
   push:
     paths:
       - '.gitignore'
+    branches: [ main ]
   pull_request:
     paths:
       - '.gitignore'
+  workflow_dispatch:
 
 jobs:
-  check-gitignore:
+  full-check:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Print .gitignore
-        run: cat .gitignore
-
-      - name: Check for basic patterns
+      - name: 🔍 Check for essential patterns
         run: |
           grep -q '__pycache__/' .gitignore
           grep -q 'IAM_Results/' .gitignore
           grep -q '.ipynb_checkpoints/' .gitignore
-          echo ".gitignore verified ✅"
+          echo "✅ Basic patterns found in .gitignore"
+
+      - name: ✅ Validate .gitignore syntax
+        uses: phips28/gh-action-gitignore@v4
