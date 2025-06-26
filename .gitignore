@@ -1,20 +1,16 @@
-
-# Fichiers Python temporaires
+# ========== Fichiers Python temporaires ==========
 __pycache__/
 *.py[cod]
 *$py.class
 
-# Extensions compilées
-*.so
-
-# Environnements virtuels
+# ========== Environnements virtuels ==========
 .venv/
 env/
 venv/
 iam-env/
 chem-env/
 
-# Fichiers temporaires ou générés automatiquement
+# ========== Fichiers temporaires ou générés automatiquement ==========
 *.log
 *.out
 *.aux
@@ -25,100 +21,39 @@ chem-env/
 *.json
 *.tmp
 
-# Résultats calculs IAM
+# ========== Résultats calculs ==========
 IAM_Results/
 IAM_Knowledge/Temporary/
 IAM_Knowledge/RawData/
 IAM_Utils/temp/
 
-# Checkpoints Jupyter
+# ========== Checkpoints Jupyter ==========
 .ipynb_checkpoints/
 
-# Fichiers système
+# ========== Fichiers système ==========
 .DS_Store
 Thumbs.db
 
-# Caches Python
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-.mypy_cache/
-.dmypy.json
-.pyre/
-.pytype/
-.ruff_cache/
-
-# Configs personnelles ou IDE
+# ========== VS Code et IDE ==========
 .vscode/
 .idea/
-.spyderproject
-.spyproject
-.ropeproject
+*.sublime-project
+*.sublime-workspace
 
-# Fichiers Pip / Pipenv / Poetry / PDM
-*.egg-info/
-.eggs/
-*.egg
-Pipfile.lock
-poetry.lock
-pdm.lock
+# ========== Notebooks exécutés ==========
+*.nbconvert.ipynb
+
+# ========== Ruff / mypy / pytest / coverage ==========
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.cache
+
+# ========== Docker / pyenv / autres outils ==========
+*.pid
+.env
 .pdm.toml
-.pdm-python
-.pdm-build/
-.installed.cfg
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-MANIFEST
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Flask / Django / Web
-instance/
-.webassets-cache
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-
-# SageMath
-*.sage.py
-
-# Abstra / Cursor AI tools
-.abstra/
-.cursorignore
-.cursorindexingignore
-
-# Documentation
-docs/_build/
-site/
-
-# Others
-.pybuilder/
-target/
-.profile_default/
-ipython_config.py
-
-# PyInstaller
-*.manifest
-*.spec
+__pypackages__/

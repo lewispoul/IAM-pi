@@ -1,5 +1,7 @@
 # ⚗️ README IAM – Installation et Premier Lancement
 
+[![.gitignore check](https://github.com/lewispoul/IAM/actions/workflows/check_gitignore.yml/badge.svg)](https://github.com/lewispoul/IAM/actions/workflows/check_gitignore.yml)
+
 ## 📦 Décompression
 
 1. Télécharge et **extrais l’archive .zip** dans le dossier : `C:\Users\pouli\OneDrive\Bureau\IAM` *(ou tout autre dossier sans espace ni accent)*
@@ -58,7 +60,7 @@ python app.py
 # Puis ouvre http://127.0.0.1:5000 dans ton navigateur (Chrome/Firefox)
 ```
 
-Le mode sombre est automatique, ou activable dans l’UI.
+### Le mode sombre est automatique, ou activable dans l’UI
 
 ---
 
@@ -96,6 +98,20 @@ iam menu
 
 ---
 
+## 🔁 Synchronisation GitHub
+
+* Ajoute un `.gitignore` (déjà généré pour toi)
+* Le badge ci-dessus valide automatiquement sa bonne configuration (`.github/workflows/check_gitignore.yml`)
+* Pour forcer le push initial :
+
+```bash
+git add .
+git commit -m "Initial commit IAM"
+git push origin main
+```
+
+---
+
 ## ⚠️ Si tu rencontres le moindre souci
 
 * Envoie-moi ici : le message d’erreur, l’étape concernée, le script/dossier impliqué
@@ -110,7 +126,7 @@ iam menu
 
 ---
 
-**Définition – **\`\`** :**
+### 📄 Définition – `.gitignore`
 
 Un fichier `.gitignore` sert à **exclure certains fichiers ou dossiers** du suivi par Git. Typiquement, tu y mets :
 
@@ -123,4 +139,4 @@ Cela évite d’encombrer ton dépôt avec des fichiers inutiles ou sensibles.
 
 ---
 
-**Prêt à être copié directement dans ton GitHub.**
+**🧠 IAM est prêt à évoluer – Tu peux déjà ajouter des modules, des datasets ou des interfaces supplémentaires.**

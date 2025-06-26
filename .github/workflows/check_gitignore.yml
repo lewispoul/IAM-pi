@@ -1,14 +1,26 @@
+name: .gitignore check
 
-name: Check .gitignore Coverage
-
-on: [push, pull_request]
+on:
+  push:
+    paths:
+      - '.gitignore'
+  pull_request:
+    paths:
+      - '.gitignore'
 
 jobs:
   check-gitignore:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: List ignored files
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Print .gitignore
+        run: cat .gitignore
+
+      - name: Check for basic patterns
         run: |
-          echo "🔍 Listing ignored files:"
-          git status --ignored --short
+          grep -q '__pycache__/' .gitignore
+          grep -q 'IAM_Results/' .gitignore
+          grep -q '.ipynb_checkpoints/' .gitignore
+          echo ".gitignore verified ✅"
