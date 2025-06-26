@@ -1,0 +1,14 @@
+
+name: Check .gitignore Coverage
+
+on: [push, pull_request]
+
+jobs:
+  check-gitignore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: List ignored files
+        run: |
+          echo "🔍 Listing ignored files:"
+          git status --ignored --short
