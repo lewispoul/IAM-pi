@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>IAM Molecule Viewer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>IAM Molecule Viewer</h1>
+    </header>
+
+    <main class="container">
+        <section class="left-panel">
+            <div class="controls">
+                <input type="file" id="xyzFile" accept=".xyz">
+                <button onclick="launchIAM()">Lancer les calculs IAM</button>
+            </div>
+            <div id="viewer"></div>
+        </section>
+
+        <section class="right-panel">
+            <div class="tabs">
+                <button class="tab-button active" onclick="showTab('summary')">Résumé</button>
+                <button class="tab-button" onclick="showTab('inputFile')">Fichier Input</button>
+                <button class="tab-button" onclick="showTab('outputFile')">Fichier Output</button>
+            </div>
+            <div class="tab-content active" id="summary"><pre id="summaryContent">{}</pre></div>
+            <div class="tab-content" id="inputFile"><pre id="inputFileContent"></pre></div>
+            <div class="tab-content" id="outputFile"><pre id="outputFileContent"></pre></div>
+        </section>
+    </main>
+
+    <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
