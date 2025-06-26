@@ -1,10 +1,7 @@
 venv/
-__pycache__/
 *.log
 *.tmp
-*.pyc
 # Byte-compiled / optimized / DLL files
-__pycache__/
 *.py[cod]
 *$py.class
 
@@ -197,3 +194,21 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# IAM – Résultats et fichiers lourds
+IAM_Results/
+IAM_Knowledge/Temporary/
+IAM_Knowledge/RawData/
+IAM_Utils/temp/
+
+# Fichiers générés automatiquement
+*.cube
+*.xyz
+*.molden
+*.wfn
+*.out
+*.aux
+*.log
+
+# Checkpoints notebooks
+.ipynb_checkpoints/

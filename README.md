@@ -40,7 +40,7 @@ chmod +x iam.sh
 sudo ln -s $(pwd)/iam.sh /usr/local/bin/iam
 ```
 
-2. **Initialise la base** :
+1. **Initialise la base** :
 
 ```bash
 python iam_update_db.py
@@ -58,7 +58,7 @@ python app.py
 # Puis ouvre http://127.0.0.1:5000 dans ton navigateur (Chrome/Firefox)
 ```
 
-*(Le mode sombre est automatique, ou activable dans l’UI)*
+Le mode sombre est automatique, ou activable dans l’UI.
 
 ---
 
