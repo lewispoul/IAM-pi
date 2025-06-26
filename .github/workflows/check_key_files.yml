@@ -1,0 +1,46 @@
+
+name: ✅ Check Key Files Format
+
+on:
+  push:
+    paths:
+      - 'requirements.txt'
+      - 'chem-env.yaml'
+      - '**.md'
+    branches: [ main ]
+  pull_request:
+    paths:
+      - 'requirements.txt'
+      - 'chem-env.yaml'
+      - '**.md'
+  workflow_dispatch:
+
+jobs:
+  validate-files:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: 🔍 Validate requirements.txt
+        run: |
+          if [ -f requirements.txt ]; then
+            echo "✅ requirements.txt trouvé."
+            cat requirements.txt
+          else
+            echo "❌ requirements.txt manquant."; exit 1
+          fi
+
+      - name: 🔍 Validate chem-env.yaml
+        run: |
+          if [ -f chem-env.yaml ]; then
+            echo "✅ chem-env.yaml trouvé."
+            cat chem-env.yaml
+          else
+            echo "❌ chem-env.yaml manquant."; exit 1
+          fi
+
+      - name: ✅ Markdown linter
+        uses: DavidAnson/markdownlint-cli2-action@v13
+        with:
+          globs: '**/*.md'
