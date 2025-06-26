@@ -1,0 +1,52 @@
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Python bytecode & caches
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+*.dll
+
+# Distribution files
+build/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+wheels/
+*.egg-info/
+.installed.cfg
+
+# Jupyter
+.ipynb_checkpoints
+
+# Logs and temporary files
+*.log
+*.out
+*.tmp
+*.bak
+*.swp
+.DS_Store
+Thumbs.db
+
+# VSCode settings
+.vscode/
+
+# PyCharm settings
+.idea/
+
+# Custom IAM folders
+IAM_Knowledge/Results/
+IAM_Knowledge/Thermo/
+IAM_Knowledge/Benchmarks/
+IAM_Knowledge/tmp/
