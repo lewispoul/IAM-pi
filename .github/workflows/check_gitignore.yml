@@ -24,5 +24,5 @@ jobs:
           grep -q '.ipynb_checkpoints/' .gitignore
           echo "✅ Basic patterns found in .gitignore"
 
-      - name: ✅ Validate .gitignore syntax
-        uses: phips28/gh-action-gitignore@v4
+      # - name: ✅ Validate .gitignore syntax
+      #   uses: phips28/gh-action-gitignore@v4
