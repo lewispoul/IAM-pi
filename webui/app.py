@@ -1,6 +1,8 @@
-from flask import Flask, render_template, request
-from Molecule_Engine.iam_molecule_engine import full_molecule_workflow
+import sys
 import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from flask import Flask, render_template, request
+from IAM_Molecule_Engine.iam_molecule_engine import full_molecule_workflow
 
 app = Flask(__name__)
 
