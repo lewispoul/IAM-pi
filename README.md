@@ -1,25 +1,29 @@
-# ⚗️ README IAM – Installation et Premier Lancement
+# ⚗️ IAM – Personal Chemistry AI Assistant
 
 [![.gitignore check](https://github.com/lewispoul/IAM/actions/workflows/check_gitignore.yml/badge.svg)](https://github.com/lewispoul/IAM/actions/workflows/check_gitignore.yml)
 
-## 📦 Décompression
+---
 
-1. Télécharge et **extrais l’archive .zip** dans le dossier : `C:\Users\pouli\OneDrive\Bureau\IAM` *(ou tout autre dossier sans espace ni accent)*
+## 📦 Installation et Premier Lancement
+
+### 1. Décompression
+
+Télécharge et **extrait l’archive `.zip`** dans un dossier sans espace ni accent (ex. `C:\Users\pouli\OneDrive\Bureau\IAM` ou `~/IAM`).
 
 ---
 
-## 🐍 Création de l’environnement Python
+### 2. Création de l’environnement Python
 
-### Option 1 – Conda (recommandé)
+#### ✅ Option 1 – Conda (recommandé)
 
 ```bash
 conda env create -f chem-env.yaml
 conda activate chem-env
 ```
 
-*Si tu n’as pas conda, télécharge Miniconda ou Anaconda.*
+💡 *Installe [Miniconda](https://docs.conda.io/en/latest/miniconda.html) si tu ne l’as pas.*
 
-### Option 2 – Pip (si tu préfères)
+#### ✅ Option 2 – Pip
 
 ```bash
 python -m venv iam-env
@@ -32,111 +36,105 @@ pip install -r requirements.txt
 
 ---
 
-## ⚙️ Installation IAM
-
-1. (Optionnel) Pour faciliter la vie en terminal :
+### 3. Initialisation IAM (Terminal)
 
 ```bash
 chmod +x iam.sh
-# (optionnel) ajouter à ton PATH
+# (optionnel) pour un accès global :
 sudo ln -s $(pwd)/iam.sh /usr/local/bin/iam
-```
 
-1. **Initialise la base** :
-
-```bash
-python iam_update_db.py
-# OU via le menu interactif :
+# Démarrer
 ./iam.sh menu
-```
-
----
-
-## 🌐 Lancer l’interface web IAM
-
-```bash
-cd IAM_GUI
-python app.py
-# Puis ouvre http://127.0.0.1:5000 dans ton navigateur (Chrome/Firefox)
-```
-
-### Le mode sombre est automatique, ou activable dans l’UI
-
----
-
-## 🖥️ Menu CLI
-
-```bash
-./iam.sh menu
-```
-
-Ou :
-
-```bash
+# ou
 iam menu
 ```
 
 ---
 
-## 📂 Dossiers principaux
+## 🌐 Lancer l’interface Web IAM
 
-* `IAM_Molecule_Engine/` — core calcul XTB/Psi4
-* `IAM_GUI/` — interface web moderne (Ketcher, historique, presets…)
-* `IAM_VoD_Predictor/` — prédiction performance EM
-* `IAM_Knowledge/` — datasets, fiches molécules, extraction auto, rapports
-* `IAM_Utils/` — scripts batch, extraction, fusion, logs
-* `IAM_Results/` — résultats calculs, historiques
+```bash
+cd IAM_GUI
+python app.py
+```
 
----
+Ensuite ouvre : [http://127.0.0.1:5000](http://127.0.0.1:5000)
 
-## 💡 Premiers tests
-
-* Lance un calcul sur le nitrométhane (preset DFT ou XTB)
-* Essaie l’historique interactif, l’ajout batch, l’extraction de datasets
-* Teste le bouton de mise à jour auto de la base
-* Joue avec IAM-Copilot dès qu’il sera activé dans l’UI
+💡 Mode sombre automatique.
 
 ---
 
-## 🔁 Synchronisation GitHub
+## 🧪 Premiers Tests
 
-* Ajoute un `.gitignore` (déjà généré pour toi)
-* Le badge ci-dessus valide automatiquement sa bonne configuration (`.github/workflows/check_gitignore.yml`)
-* Pour forcer le push initial :
+- [x] Calcul XTB sur le **nitrométhane**
+- [x] Génération des fichiers `.json`, `.cube`, etc.
+- [x] Visualisation 3D avec 3Dmol.js
+- [x] Prédiction VoD et deltaH
+- [x] Test de l’historique et extraction automatique depuis PDF
+
+---
+
+## 🧠 Modules Principaux
+
+| Dossier                   | Rôle principal                                      |
+|--------------------------|-----------------------------------------------------|
+| `IAM_Molecule_Engine/`   | Calculs moléculaires (XTB, Psi4, etc.)              |
+| `IAM_GUI/`               | Interface utilisateur Flask + Web visualisations    |
+| `IAM_Knowledge/`         | Datasets, fiches molécules, extraction automatique  |
+| `IAM_VoD_Predictor/`     | Prédiction performance énergétique (ML/KJ/DFT)      |
+| `IAM_Utils/`             | Scripts batch, parsing, fusion, logs, conversions   |
+| `IAM_Results/`           | Résultats sauvegardés automatiquement               |
+
+---
+
+## 🔁 GitHub Synchronisation
+
+1. Ton dépôt est déjà connecté (origin : `https://github.com/lewispoul/IAM.git`)
+2. Le fichier `.gitignore` est vérifié automatiquement :
+   [![.gitignore check](https://github.com/lewispoul/IAM/actions/workflows/check_gitignore.yml/badge.svg)](https://github.com/lewispoul/IAM/actions/workflows/check_gitignore.yml)
+
+3. Pour pousser les changements :
 
 ```bash
 git add .
-git commit -m "Initial commit IAM"
+git commit -m "💬 Mise à jour IAM"
 git push origin main
 ```
 
 ---
 
-## ⚠️ Si tu rencontres le moindre souci
+## 🧾 Définition : `.gitignore`
 
-* Envoie-moi ici : le message d’erreur, l’étape concernée, le script/dossier impliqué
-* Je t’envoie un patch ou le correctif sur-le-champ (aucun risque de rester bloqué !)
+Le `.gitignore` permet d’exclure :
 
----
+- Les fichiers temporaires Python (`__pycache__/`, `*.pyc`)
+- Les environnements (`env/`, `.venv/`)
+- Les résultats de calcul (`IAM_Results/`, `*.log`)
+- Les dossiers système (`.ipynb_checkpoints/`, `.vscode/`, `.DS_Store`)
 
-## 🚀 Prêt pour la suite
-
-* Dès le téléchargement, tu peux commencer à jouer/tester tout ce que tu veux !
-* Tu peux enrichir la base (ajout de PDF, CSV…), IAM fait tout automatiquement
-
----
-
-### 📄 Définition – `.gitignore`
-
-Un fichier `.gitignore` sert à **exclure certains fichiers ou dossiers** du suivi par Git. Typiquement, tu y mets :
-
-* les fichiers temporaires (`*.pyc`, `__pycache__/`)
-* les environnements (`env/`, `.venv/`)
-* les résultats de calcul ou fichiers volumineux (`*.log`, `IAM_Results/`)
-* les fichiers de configuration personnels (`.vscode/`, `config.yaml`)
-
-Cela évite d’encombrer ton dépôt avec des fichiers inutiles ou sensibles.
+💡 Cela évite de "polluer" le dépôt avec des fichiers locaux non pertinents.
 
 ---
 
-**🧠 IAM est prêt à évoluer – Tu peux déjà ajouter des modules, des datasets ou des interfaces supplémentaires.**
+## 💡 Conseils
+
+- Garde un œil sur les résultats dans `IAM_Results/`
+- Utilise le bouton “Mise à jour” pour enrichir la base automatiquement
+- Commence par les molécules simples pour valider le pipeline (ex: CH₃NO₂, NH₃, TATB, etc.)
+
+---
+
+## 🤝 Besoin d'aide ?
+
+Tu peux poser une question en spécifiant :
+
+- 📍 Le nom du script
+- 💣 La molécule testée (si applicable)
+- 🧪 Le type d’analyse souhaité (XTB, VoD, etc.)
+- ⚠️ Le message d’erreur s’il y a lieu
+
+---
+
+IAM est un assistant scientifique extensible — **chaque calcul, chaque fiche, chaque script peut être amélioré, enrichi ou automatisé.** 🧬
+
+---
