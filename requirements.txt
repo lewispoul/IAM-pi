@@ -18,3 +18,16 @@ pandas
 scikit-learn
 torch
 transformers
+
+openai
+flask
+python-dotenv
+requests
+rdkit-pypi
+py3Dmol
+numpy
+pandas
+matplotlib
+scikit-learn
+torch
+transformers

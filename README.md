@@ -8,7 +8,7 @@
 
 ### 1. Décompression
 
-Télécharge et **extrait l’archive `.zip`** dans un dossier sans espace ni accent (ex. `C:\Users\%userprofile%\documents\IAM` ou `~/IAM`).
+Télécharge et **extrait l’archive `.zip`** dans un dossier sans espace ni accent (ex. `C:\Users\pouli\OneDrive\Bureau\IAM` ou `~/IAM`).
 
 ---
 

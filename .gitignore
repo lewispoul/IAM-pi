@@ -1,6 +1,5 @@
 # Virtual environments
 .venv/
-venv/
 env/
 ENV/
 env.bak/
@@ -26,27 +25,13 @@ sdist/
 wheels/
 *.egg-info/
 .installed.cfg
+*.egg
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
 
 # Jupyter
 .ipynb_checkpoints
 
-# Logs and temporary files
-*.log
-*.out
-*.tmp
-*.bak
-*.swp
-.DS_Store
-Thumbs.db
-
 # VSCode settings
 .vscode/
-
-# PyCharm settings
-.idea/
-
-# Custom IAM folders
-IAM_Knowledge/Results/
-IAM_Knowledge/Thermo/
-IAM_Knowledge/Benchmarks/
-IAM_Knowledge/tmp/
