@@ -21,6 +21,36 @@ def handle_exception(e):
         "details": traceback.format_exc()
     }), 500
 
+# --- RDKit 3D coordinate generation helpers ---
+def embed_molecule_with_3d(mol):
+    """
+    Embed 3D coordinates using ETKDG if available, fallback to standard, and optimize with UFF or MMFF if available.
+    """
+    from rdkit.Chem import rdDistGeom
+    # Try ETKDG if available
+    params = None
+    if hasattr(rdDistGeom, "ETKDGv3"):
+        params = rdDistGeom.ETKDGv3()
+    elif hasattr(rdDistGeom, "ETKDGv2"):
+        params = rdDistGeom.ETKDGv2()
+    elif hasattr(rdDistGeom, "ETKDG"):
+        params = rdDistGeom.ETKDG()
+    if params is not None:
+        rdDistGeom.EmbedMolecule(mol, params)
+    else:
+        rdDistGeom.EmbedMolecule(mol)
+    # Optimize geometry if possible
+    try:
+        from rdkit.Chem import rdForceFieldHelpers
+        if hasattr(rdForceFieldHelpers, "UFFOptimizeMolecule"):
+            rdForceFieldHelpers.UFFOptimizeMolecule(mol)
+        elif hasattr(rdForceFieldHelpers, "MMFFOptimizeMolecule"):
+            rdForceFieldHelpers.MMFFOptimizeMolecule(mol)
+    except Exception:
+        pass
+    return mol
+
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     results = {}
@@ -32,9 +62,7 @@ def index():
             # Convertir SMILES → Molécule 3D
             mol = Chem.MolFromSmiles(smiles)
             mol = Chem.AddHs(mol)
-            AllChem.EmbedMolecule(mol)
-            AllChem.UFFOptimizeMolecule(mol)
-
+            mol = embed_molecule_with_3d(mol)
             xyz = Chem.MolToXYZBlock(mol)
             with tempfile.TemporaryDirectory() as tempdir:
                 xyz_path = os.path.join(tempdir, f"{job_name}.xyz")
@@ -133,37 +161,50 @@ elif energy_type == 'freq':
         except Exception as e:
             return jsonify({"success": False, "error": "Psi4 error", "details": traceback.format_exc()}), 500
 
-    try:
-        with tempfile.TemporaryDirectory() as tempdir:
-            xyz_path = os.path.join(tempdir, "molecule.xyz")
-            xyz_file.save(xyz_path)
-            # Debug: print the first few lines of the received file
-            with open(xyz_path) as f:
-                lines = f.readlines()
-            print("--- Received file content for XTB job ---")
-            print(''.join(lines[:10]))
-            print("--- End of file preview ---")
+    # Accept both XYZ and MOL input from frontend
+    mol_string = xyz_file.read().decode("utf-8")
+    # Heuristics: check for XYZ, else try MOL
+    if is_xyz_format(mol_string):
+        xyz_string = mol_string
+    else:
+        # Accept MOL if starts with 'Ketcher', 'INDIGO', or contains 'V2000'/'V3000'
+        if (mol_string.strip().startswith("Ketcher") or
+            mol_string.strip().startswith("INDIGO") or
+            "V2000" in mol_string or "V3000" in mol_string):
+            try:
+                xyz_string = molblock_to_xyz(mol_string)
+            except Exception as e:
+                return jsonify({"success": False, "error": f"MOL to XYZ conversion failed: {e}", "details": traceback.format_exc()}), 400
+        else:
+            return jsonify({"success": False, "error": "Unknown molecule format. Please provide XYZ or MOLfile (V2000/V3000)."}), 400
 
-            xtb_command = ["xtb", xyz_path, "--opt", "--json", "--gfn", "2"]
-            # TODO: Use calc_type, charge, multiplicity, solvent, etc. in xtb_command as needed
-            result = subprocess.run(xtb_command, cwd=tempdir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    with tempfile.TemporaryDirectory() as tempdir:
+        xyz_path = os.path.join(tempdir, "molecule.xyz")
+        with open(xyz_path, "w") as f:
+            f.write(xyz_string)
+        # Debug: print the first few lines of the received/converted file
+        with open(xyz_path) as f:
+            lines = f.readlines()
+        print("--- Received/converted file content for XTB job ---")
+        print(''.join(lines[:10]))
+        print("--- End of file preview ---")
 
-            json_path = os.path.join(tempdir, "xtbout.json")
-            if not os.path.exists(json_path):
-                return jsonify({
-                    "success": False,
-                    "error": "Fichier xtbout.json non trouvé",
-                    "details": f"stdout: {result.stdout}\nstderr: {result.stderr}\nfile_preview: {''.join(lines[:10])}"
-                }), 500
+        xtb_command = ["xtb", xyz_path, "--opt", "--json", "--gfn", "2"]
+        # TODO: Use calc_type, charge, multiplicity, solvent, etc. in xtb_command as needed
+        result = subprocess.run(xtb_command, cwd=tempdir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
-            with open(json_path, "r") as f:
-                xtb_data = json.load(f)
+        json_path = os.path.join(tempdir, "xtbout.json")
+        if not os.path.exists(json_path):
+            return jsonify({
+                "success": False,
+                "error": "Fichier xtbout.json non trouvé",
+                "details": f"stdout: {result.stdout}\nstderr: {result.stderr}\nfile_preview: {''.join(lines[:10])}"
+            }), 500
 
-            return jsonify({"success": True, "xtb_json": xtb_data, "file_preview": ''.join(lines[:10])})
+        with open(json_path, "r") as f:
+            xtb_data = json.load(f)
 
-    except Exception as e:
-        return jsonify({"success": False, "error": "XTB error", "details": traceback.format_exc()}), 500
-
+        return jsonify({"success": True, "xtb_json": xtb_data, "file_preview": ''.join(lines[:10])})
 
 @app.route('/smiles_to_xyz', methods=['POST'])
 def smiles_to_xyz():
@@ -172,8 +213,7 @@ def smiles_to_xyz():
     try:
         mol = Chem.MolFromSmiles(smiles)
         mol = Chem.AddHs(mol)
-        AllChem.EmbedMolecule(mol)
-        AllChem.UFFOptimizeMolecule(mol)
+        mol = embed_molecule_with_3d(mol)
         xyz = Chem.MolToXYZBlock(mol)
         return jsonify({'success': True, 'xyz': xyz})
     except Exception as e:
@@ -187,12 +227,147 @@ def molfile_to_xyz():
     try:
         mol = Chem.MolFromMolBlock(molfile)
         mol = Chem.AddHs(mol)
-        AllChem.EmbedMolecule(mol)
-        AllChem.UFFOptimizeMolecule(mol)
+        mol = embed_molecule_with_3d(mol)
         xyz = Chem.MolToXYZBlock(mol)
         return jsonify({'success': True, 'xyz': xyz})
     except Exception as e:
         return jsonify({'success': False, 'error': 'Molfile conversion error', 'details': traceback.format_exc()})
+
+def is_xyz_format(mol_string: str) -> bool:
+    """
+    Check if the input string is in XYZ format.
+    Returns True if the first line is an integer (atom count),
+    and the second line is a comment or blank, and the rest look like atom lines.
+    """
+    lines = mol_string.strip().splitlines()
+    if len(lines) < 3:
+        return False
+    try:
+        atom_count = int(lines[0].strip())
+        # Optionally check that the number of atom lines matches atom_count
+        if len(lines) >= atom_count + 2:
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def molblock_to_xyz(molblock: str) -> str:
+    """
+    Convert a MOLfile (V2000 or V3000) string to XYZ format using RDKit.
+    - Cleans up line endings, whitespace, and non-printable characters
+    - Removes '-INDIGO-' header and leading blank lines
+    - Tries strictParsing=False if needed
+    - Adds hydrogens, generates 3D coordinates
+    - Returns XYZ string
+    Raises ValueError if conversion fails.
+    """
+    import string
+    try:
+        # Clean up MOL block: normalize line endings, strip whitespace, remove nulls and non-printables
+        molblock_clean = molblock.replace('\r\n', '\n').replace('\r', '\n')
+        molblock_clean = ''.join(c for c in molblock_clean if c in string.printable)
+        # Patch for Indigo/Ketcher: remove '-INDIGO-' header and leading blank lines
+        molblock_clean = patch_molblock(molblock_clean)
+        # Remove empty lines anywhere (extra safety)
+        molblock_clean = '\n'.join([line for line in molblock_clean.split('\n') if line.strip()])
+        # Try parsing with and without sanitization, and with strictParsing
+        mol = Chem.MolFromMolBlock(molblock_clean, sanitize=False, removeHs=False)
+        if mol is None:
+            mol = Chem.MolFromMolBlock(molblock_clean, sanitize=False, removeHs=False, strictParsing=False)
+        if mol is None:
+            print("[DEBUG] MOL block that failed to parse:")
+            print(molblock_clean)
+            raise ValueError("RDKit could not parse MOL block. This MOL may be incompatible with RDKit. Try exporting as V2000, or use SMILES/XYZ instead.")
+        try:
+            Chem.SanitizeMol(mol)
+        except Exception as e:
+            raise ValueError(f"RDKit could not sanitize MOL block: {e}")
+        mol = Chem.AddHs(mol)
+        mol = embed_molecule_with_3d(mol)
+        xyz = Chem.MolToXYZBlock(mol)
+        if not xyz or len(xyz.strip().splitlines()) < 3:
+            raise ValueError("XYZ conversion failed or empty output.")
+        return xyz
+    except Exception as e:
+        raise ValueError(f"Failed to convert MOL to XYZ: {e}")
+
+# Example usage:
+# patched_mol = patch_molblock(mol_string)
+# mol = Chem.MolFromMolBlock(patched_mol)
+# (In molblock_to_xyz, patch_molblock is now always called before parsing)
+
+
+def patch_molblock(molblock: str) -> str:
+    """
+    Make a MOL block maximally compatible with RDKit:
+    - Strip all leading and trailing blank lines.
+    - If the first line starts with '-INDIGO-', 'CDK', 'ChemDraw', or is blank, replace it with 'Untitled'.
+    - If the second line starts with '-INDIGO-', 'CDK', 'ChemDraw', or is blank, replace it with a single space.
+    - Ensure no blank lines before the counts line (the line with 'V2000' or 'V3000').
+    - Fix the counts line: first 9 fields must be integer strings.
+    - Remove extra blank lines except after the counts line (exactly one blank line after counts line).
+    - Remove any extra lines after 'M  END'.
+    - Return the fixed MOL block with a trailing newline.
+    """
+    import re
+    lines = molblock.splitlines()
+    # 1. Strip all leading and trailing blank lines
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    while lines and not lines[-1].strip():
+        lines.pop()
+    # 2. Fix first line
+    known_headers = ('-INDIGO-', 'CDK', 'ChemDraw')
+    if not lines or not lines[0].strip() or any(lines[0].startswith(h) for h in known_headers):
+        if lines:
+            lines[0] = 'Untitled'
+        else:
+            lines = ['Untitled']
+    # 3. Fix second line
+    if len(lines) < 2:
+        lines.append(' ')
+    elif not lines[1].strip() or any(lines[1].startswith(h) for h in known_headers):
+        lines[1] = ' '
+    # 4. Find counts line and ensure no blank lines before it
+    counts_idx = None
+    for i, line in enumerate(lines):
+        if 'V2000' in line or 'V3000' in line:
+            counts_idx = i
+            break
+    if counts_idx is None:
+        # Not a valid MOL block, return as is
+        return '\n'.join(lines) + '\n'
+    # Remove blank lines before counts line
+    before_counts = [l for l in lines[:counts_idx] if l.strip()]
+    # 5. Fix counts line fields
+    fields = lines[counts_idx].split()
+    for j in range(min(9, len(fields))):
+        try:
+            fields[j] = str(int(float(fields[j])))
+        except Exception:
+            pass
+    fixed_counts = ' '.join(fields)
+    # 6. Remove extra blank lines except after counts line (exactly one blank line after counts line)
+    after_counts = lines[counts_idx+1:]
+    # Remove all blank lines
+    after_counts = [l for l in after_counts if l.strip()]
+    # Insert exactly one blank line after counts line
+    after_counts = [''] + after_counts if after_counts else ['']
+    # 7. Remove any extra lines after 'M  END'
+    if 'M  END' in after_counts:
+        m_end_idx = after_counts.index('M  END')
+        after_counts = after_counts[:m_end_idx+1]
+    # 8. Rebuild
+    fixed_lines = before_counts + [fixed_counts] + after_counts
+    result = '\n'.join(fixed_lines)
+    if not result.endswith('\n'):
+        result += '\n'
+    return result
+
+# Example usage:
+# molblock = patch_molblock(molblock)
+# mol = Chem.MolFromMolBlock(molblock)
 
 
 if __name__ == '__main__':
