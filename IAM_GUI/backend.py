@@ -4,12 +4,22 @@ import os
 import subprocess
 import tempfile
 import json
+import traceback
 
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
 app = Flask(__name__, template_folder='templates')
 CORS(app)
+
+# --- Global error handler ---
+@app.errorhandler(Exception)
+def handle_exception(e):
+    return jsonify({
+        "success": False,
+        "error": str(e),
+        "details": traceback.format_exc()
+    }), 500
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -37,13 +47,13 @@ def index():
 
                 json_path = os.path.join(tempdir, "xtbout.json")
                 if not os.path.exists(json_path):
-                    results = {"error": "Fichier xtbout.json non trouvé", "stdout": result.stdout, "stderr": result.stderr}
+                    results = {"success": False, "error": "Fichier xtbout.json non trouvé", "details": f"stdout: {result.stdout}\nstderr: {result.stderr}"}
                 else:
                     with open(json_path, "r") as f:
                         results = json.load(f)
 
         except Exception as e:
-            results = {"error": str(e)}
+            results = {"success": False, "error": str(e), "details": traceback.format_exc()}
 
     return render_template("iam_viewer_connected.html", results=results)
 
@@ -51,11 +61,11 @@ def index():
 @app.route('/run_xtb', methods=['POST'])
 def run_xtb():
     if "file" not in request.files:
-        return jsonify({"success": False, "details": "Aucun fichier reçu"}), 400
+        return jsonify({"success": False, "error": "No file received", "details": "Aucun fichier reçu"}), 400
 
     xyz_file = request.files["file"]
     if xyz_file.filename == "":
-        return jsonify({"success": False, "details": "Nom de fichier vide"}), 400
+        return jsonify({"success": False, "error": "Empty filename", "details": "Nom de fichier vide"}), 400
 
     # Get job parameters
     method = request.form.get('method', 'xtb')
@@ -121,7 +131,7 @@ elif energy_type == 'freq':
                 psi4_summary['stderr'] = result.stderr[-1000:]
                 return jsonify({"success": True, "psi4_json": psi4_summary})
         except Exception as e:
-            return jsonify({"success": False, "details": f"Psi4 error: {str(e)}"}), 500
+            return jsonify({"success": False, "error": "Psi4 error", "details": traceback.format_exc()}), 500
 
     try:
         with tempfile.TemporaryDirectory() as tempdir:
@@ -142,10 +152,8 @@ elif energy_type == 'freq':
             if not os.path.exists(json_path):
                 return jsonify({
                     "success": False,
-                    "details": "Fichier xtbout.json non trouvé",
-                    "stdout": result.stdout,
-                    "stderr": result.stderr,
-                    "file_preview": ''.join(lines[:10])
+                    "error": "Fichier xtbout.json non trouvé",
+                    "details": f"stdout: {result.stdout}\nstderr: {result.stderr}\nfile_preview: {''.join(lines[:10])}"
                 }), 500
 
             with open(json_path, "r") as f:
@@ -154,7 +162,7 @@ elif energy_type == 'freq':
             return jsonify({"success": True, "xtb_json": xtb_data, "file_preview": ''.join(lines[:10])})
 
     except Exception as e:
-        return jsonify({"success": False, "details": str(e)}), 500
+        return jsonify({"success": False, "error": "XTB error", "details": traceback.format_exc()}), 500
 
 
 @app.route('/smiles_to_xyz', methods=['POST'])
@@ -169,7 +177,7 @@ def smiles_to_xyz():
         xyz = Chem.MolToXYZBlock(mol)
         return jsonify({'success': True, 'xyz': xyz})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        return jsonify({'success': False, 'error': 'SMILES conversion error', 'details': traceback.format_exc()})
 
 
 @app.route('/molfile_to_xyz', methods=['POST'])
@@ -184,7 +192,7 @@ def molfile_to_xyz():
         xyz = Chem.MolToXYZBlock(mol)
         return jsonify({'success': True, 'xyz': xyz})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        return jsonify({'success': False, 'error': 'Molfile conversion error', 'details': traceback.format_exc()})
 
 
 if __name__ == '__main__':
