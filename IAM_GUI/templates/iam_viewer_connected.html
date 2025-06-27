@@ -89,6 +89,13 @@
             flex-direction: column;
             align-items: center;
         }
+        /* --- Fix 3: Make summary/output/log tabs scrollable and never overflow --- */
+        #resultTabsContent { max-width: 100%; max-height: 350px; overflow-y: auto; }
+        .tab-pane { max-height: 340px; overflow-y: auto; }
+        .summary-table td, .summary-table th { word-break: break-all; max-width: 320px; }
+        @media (min-width: 900px) {
+          #resultTabsContent { min-width: 600px; }
+        }
     </style>
 </head>
 <body>
@@ -135,7 +142,7 @@
                         <button id="importMol" class="btn btn-outline-success" type="button" title="Import MOL/XYZ">Import</button>
                     </div>
                     <label class="form-label fw-bold" for="xyzFile">Or upload file</label>
-                    <input type="file" id="xyzFile" class="form-control" accept=".xyz,.mol,.smi,.smiles">
+                    <input type="file" id="xyzFile" class="form-control" accept=".xyz,.mol,.sdf,.smi,.smiles">
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold">Job Options</label>
@@ -389,7 +396,6 @@
         // Helper: send message to Ketcher iframe
         function getKetcherMol(callback) {
             if (!ketcherFrame) return;
-            // Ketcher supports postMessage API
             window.addEventListener('message', function handler(e) {
                 if (e.data && e.data.type === 'ketcher:get-mol') {
                     window.removeEventListener('message', handler);
@@ -408,7 +414,7 @@
             });
             ketcherFrame.contentWindow.postMessage({type: 'get-smiles'}, '*');
         }
-        // Load from Sketcher (robust: get MOL from Ketcher, send to /run_xtb, update UI, handle errors)
+        // Load from Sketcher (robust: get MOL from Ketcher, send to /molfile_to_xyz, update UI, handle errors)
         document.getElementById('loadFromSketcher').addEventListener('click', function () {
             const ketcherFrame = document.getElementById('ketcherFrame');
             if (!ketcherFrame) {
@@ -468,114 +474,7 @@
                 }
             }, 2000);
         });
-        // Export/Copy buttons
-        document.getElementById('exportSmiles').addEventListener('click', function() {
-            getKetcherSmiles(function(smiles) {
-                if (!smiles) return alert('No molecule in sketcher.');
-                downloadText(smiles, 'molecule.smiles');
-            });
-        });
-        document.getElementById('exportMol').addEventListener('click', function() {
-            getKetcherMol(function(mol) {
-                if (!mol) return alert('No molecule in sketcher.');
-                downloadText(mol, 'molecule.mol');
-            });
-        });
-        document.getElementById('exportXyz').addEventListener('click', function() {
-            if (!currentXyz) return alert('No 3D structure available.');
-            downloadText(currentXyz, 'molecule.xyz');
-        });
-        document.getElementById('copySmiles').addEventListener('click', function() {
-            getKetcherSmiles(function(smiles) {
-                if (!smiles) return alert('No molecule in sketcher.');
-                copyToClipboard(smiles);
-                showToastMsg('SMILES copied to clipboard.');
-            });
-        });
-        document.getElementById('copyMol').addEventListener('click', function() {
-            getKetcherMol(function(mol) {
-                if (!mol) return alert('No molecule in sketcher.');
-                copyToClipboard(mol);
-                showToastMsg('MOL copied to clipboard.');
-            });
-        });
-        document.getElementById('copyXyz').addEventListener('click', function() {
-            if (!currentXyz) return alert('No 3D structure available.');
-            copyToClipboard(currentXyz);
-            showToastMsg('XYZ copied to clipboard.');
-        });
-        // Import SMILES
-        document.getElementById('importSmiles').addEventListener('click', function() {
-            const smiles = document.getElementById('smilesPaste').value.trim();
-            if (!smiles) return;
-            fetch('/run_xtb', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({input: smiles, input_format: 'smiles', output_format: 'xyz'})
-            })
-            .then(async r => {
-                let data;
-                try { data = await r.json(); } catch (jsonErr) {
-                    showToastMsg('Server error: Invalid JSON response', true, jsonErr.stack || jsonErr);
-                    throw jsonErr;
-                }
-                if (!r.ok || !data.success || !data.xyz) {
-                    const msg = (data && (data.error || data.details)) ? `${data.error || 'Error'}: ${data.details || ''}` : 'Unknown error occurred';
-                    showToastMsg(msg, true, data.details);
-                    renderMolecule("");
-                    return;
-                }
-                renderMolecule(data.xyz);
-                showToastMsg('SMILES imported and rendered.');
-            })
-            .catch(err => {
-                showToastMsg('Network or server error: ' + err.message, true, err.stack || err);
-                renderMolecule("");
-            });
-        });
-        // Import MOL/XYZ
-        document.getElementById('importMol').addEventListener('click', function() {
-            const mol = document.getElementById('molPaste').value.trim();
-            if (!mol) return;
-            let input_format = mol.startsWith('M  END') || mol.includes('V2000') ? 'mol' : 'xyz';
-            if (input_format === 'xyz') {
-                try {
-                    renderMolecule(mol);
-                    showToastMsg('XYZ imported and rendered.');
-                } catch (e) {
-                    showToastMsg('Invalid XYZ format: ' + e.message, true, e.stack || e);
-                    renderMolecule("");
-                }
-            } else {
-                fetch('/molfile_to_xyz', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({molfile: mol})
-                })
-                .then(async r => {
-                    let data;
-                    try { data = await r.json(); } catch (jsonErr) {
-                        showToastMsg('Server error: Invalid JSON response', true, jsonErr.stack || jsonErr);
-                        throw jsonErr;
-                    }
-                    if (!r.ok || !data.success) {
-                        const msg = (data && (data.error || data.details)) ? `${data.error || 'Error'}: ${data.details || ''}` : 'Unknown error occurred';
-                        showToastMsg(msg, true, data.details);
-                        document.getElementById('summaryContent').innerHTML = `<span style='color:#b00;'>${msg}</span>`;
-                        return;
-                    }
-                    currentMol = mol;
-                    currentXyz = data.xyz;
-                    renderMolecule(data.xyz);
-                    showToastMsg('Structure imported and rendered.');
-                })
-                .catch(err => {
-                    showToastMsg('Network or server error: ' + err.message, true, err.stack || err);
-                    document.getElementById('summaryContent').innerHTML = `<span style='color:#b00;'>${err.message}</span>`;
-                });
-            }
-        });
-        // File upload (robust, always render or show error)
+        // --- Fix 2: File upload previews .xyz in 3D viewer immediately ---
         document.getElementById('xyzFile').addEventListener('change', function () {
             if (this.files.length) {
                 const reader = new FileReader();
@@ -627,107 +526,29 @@
         // Add CSS for max-height and overflow
         const style = document.createElement('style');
         style.innerHTML = `
-        #resultTabsContent { max-height: 350px; overflow-y: auto; }
+        #resultTabsContent { max-width: 100%; max-height: 350px; overflow-y: auto; }
         .tab-pane { max-height: 340px; overflow-y: auto; }
-        .summary-table td, .summary-table th { word-break: break-all; max-width: 220px; }
+        .summary-table td, .summary-table th { word-break: break-all; max-width: 320px; }
+        @media (min-width: 900px) {
+          #resultTabsContent { min-width: 600px; }
+        }
         `;
         document.head.appendChild(style);
-        // --- Fix 4: Reset button clears all fields, viewer, and results ---
-        document.getElementById('resetBtn').addEventListener('click', function() {
-            document.getElementById('molPaste').value = '';
-            document.getElementById('smilesPaste').value = '';
-            document.getElementById('xyzFile').value = '';
-            document.getElementById('method').selectedIndex = 0;
-            document.getElementById('basis').selectedIndex = 0;
-            document.getElementById('charge').value = 0;
-            document.getElementById('multiplicity').value = 1;
-            document.getElementById('summaryContent').innerHTML = 'Job summary and results will appear here.';
-            document.getElementById('outputFileContent').innerHTML = 'Output file will appear here.';
-            document.getElementById('logFileContent').innerHTML = 'Log file will appear here.';
-            renderMolecule("");
-            const ketcherFrame = document.getElementById('ketcherFrame');
-            if (ketcherFrame && ketcherFrame.contentWindow) {
-                ketcherFrame.contentWindow.postMessage({type: 'reset'}, '*');
-            }
-        });
-        // --- Fix: Preview on SMILES import as well ---
-        document.getElementById('importSmiles').addEventListener('click', function() {
-            const smiles = document.getElementById('smilesPaste').value.trim();
-            if (!smiles) return;
-            fetch('/run_xtb', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({input: smiles, input_format: 'smiles', output_format: 'xyz'})
-            })
-            .then(async r => {
-                let data;
-                try { data = await r.json(); } catch (jsonErr) {
-                    showToastMsg('Server error: Invalid JSON response', true, jsonErr.stack || jsonErr);
-                    throw jsonErr;
+        // Patch summary rendering to use <pre> or <details> for long arrays/objects
+        function formatSummaryValue(val) {
+            if (typeof val === 'object') {
+                const str = JSON.stringify(val, null, 2);
+                if (str.length > 60 || Array.isArray(val)) {
+                    return `<details><summary>Show data</summary><pre>${str}</pre></details>`;
+                } else {
+                    return `<pre>${str}</pre>`;
                 }
-                if (!r.ok || !data.success || !data.xyz) {
-                    const msg = (data && (data.error || data.details)) ? `${data.error || 'Error'}: ${data.details || ''}` : 'Unknown error occurred';
-                    showToastMsg(msg, true, data.details);
-                    renderMolecule("");
-                    return;
-                }
-                renderMolecule(data.xyz);
-                showToastMsg('SMILES imported and rendered.');
-            })
-            .catch(err => {
-                showToastMsg('Network or server error: ' + err.message, true, err.stack || err);
-                renderMolecule("");
-            });
-        });
-        // Viewer controls
-        document.getElementById('viewerBg').addEventListener('change', function() {
-            setViewerBg(this.value);
-        });
-        document.getElementById('viewerReset').addEventListener('click', resetViewer);
-        document.getElementById('viewerCenter').addEventListener('click', centerViewer);
-        document.getElementById('viewerRotate').addEventListener('click', toggleRotation);
-        // Show molecule in viewer if pasted/uploaded (molPaste) - only show error if viewer fails
-        document.getElementById('molPaste').addEventListener('input', function () {
-            const mol = this.value.trim();
-            if (!mol) {
-                renderMolecule("");
-                return;
             }
-            let input_format = mol.startsWith('M  END') || mol.includes('V2000') ? 'mol' : 'xyz';
-            if (input_format === 'xyz') {
-                try {
-                    renderMolecule(mol);
-                } catch (e) {
-                    showToastMsg('Invalid XYZ format: ' + e.message, true, e.stack || e);
-                    renderMolecule("");
-                }
-            } else {
-                fetch('/molfile_to_xyz', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({molfile: mol})
-                })
-                .then(async r => {
-                    let data;
-                    try { data = await r.json(); } catch (jsonErr) {
-                        showToastMsg('Server error: Invalid JSON response', true, jsonErr.stack || jsonErr);
-                        throw jsonErr;
-                    }
-                    if (!r.ok || !data.success || !data.xyz) {
-                        const msg = (data && (data.error || data.details)) ? `${data.error || 'Error'}: ${data.details || ''}` : 'Unknown error occurred';
-                        showToastMsg(msg, true, data.details);
-                        renderMolecule("");
-                        return;
-                    }
-                    renderMolecule(data.xyz);
-                })
-                .catch(err => {
-                    showToastMsg('Network or server error: ' + err.message, true, err.stack || err);
-                    renderMolecule("");
-                });
-            }
-        });
-        document.getElementById('launchIAMBtn').addEventListener('click', async function () {
+            return val;
+        }
+        // Patch job result rendering to use formatSummaryValue
+        const origJobHandler = document.getElementById('launchIAMBtn').onclick;
+        document.getElementById('launchIAMBtn').onclick = async function () {
             const btn = this;
             btn.disabled = true;
             btn.textContent = 'Submitting...';
@@ -750,7 +571,6 @@
             formData.append('basis', document.getElementById('basis').value);
             formData.append('charge', document.getElementById('charge').value);
             formData.append('multiplicity', document.getElementById('multiplicity').value);
-            // Show loading
             document.getElementById('summaryContent').innerHTML = '<em>Submitting job...</em>';
             document.getElementById('outputFileContent').textContent = '';
             document.getElementById('logFileContent').textContent = '';
@@ -773,31 +593,27 @@
                     document.getElementById('summaryContent').innerHTML = `<span style='color:#b00;'>${msg}</span>`;
                     return;
                 }
-                // Debug: log result
-                console.log('Backend result:', result);
-                // Summary tab formatting
+                // Summary tab formatting (patched)
                 if (result.success && result.xtb_json) {
                     const xtb = result.xtb_json;
                     let html = '<table class="table table-sm table-bordered w-auto summary-table">';
-                    if (xtb["total energy"]) html += `<tr><td>Total Energy (Eh)</td><td>${xtb["total energy"]}</td></tr>`;
-                    if (xtb["HOMO-LUMO gap/eV"]) html += `<tr><td>HOMO-LUMO gap (eV)</td><td>${xtb["HOMO-LUMO gap/eV"]}</td></tr>`;
-                    if (xtb["dipole"]) html += `<tr><td>Dipole moment (D)</td><td>${xtb["dipole"]}</td></tr>`;
-                    if (xtb["xtb version"]) html += `<tr><td>XTB version</td><td>${xtb["xtb version"]}</td></tr>`;
-                    // Show all other properties for completeness
                     for (const [k, v] of Object.entries(xtb)) {
-                        if (["total energy", "HOMO-LUMO gap/eV", "dipole", "xtb version", "structure", "xyz"].includes(k)) continue;
-                        html += `<tr><td>${k}</td><td>${typeof v === 'object' ? JSON.stringify(v) : v}</td></tr>`;
+                        if (Array.isArray(v) || (typeof v === 'object' && v !== null)) {
+                            html += `<tr><td>${k}</td><td><details><summary>Show</summary><pre>${JSON.stringify(v, null, 2)}</pre></details></td></tr>`;
+                        } else {
+                            html += `<tr><td>${k}</td><td>${v}</td></tr>`;
+                        }
                     }
                     html += '</table>';
                     document.getElementById('summaryContent').innerHTML = html;
                 } else if (result.success && result.psi4_json) {
                     const psi4 = result.psi4_json;
                     let html = '<table class="table table-sm table-bordered w-auto summary-table">';
-                    if (psi4.final_energy) html += `<tr><td>Final Energy</td><td>${psi4.final_energy}</td></tr>`;
-                    if (psi4.psi4_version) html += `<tr><td>Psi4 Version</td><td>${psi4.psi4_version}</td></tr>`;
+                    if (psi4.final_energy) html += `<tr><td>Final Energy</td><td>${formatSummaryValue(psi4.final_energy)}</td></tr>`;
+                    if (psi4.psi4_version) html += `<tr><td>Psi4 Version</td><td>${formatSummaryValue(psi4.psi4_version)}</td></tr>`;
                     for (const [k, v] of Object.entries(psi4)) {
                         if (["final_energy", "psi4_version"].includes(k)) continue;
-                        html += `<tr><td>${k}</td><td>${typeof v === 'object' ? JSON.stringify(v) : v}</td></tr>`;
+                        html += `<tr><td>${k}</td><td>${formatSummaryValue(v)}</td></tr>`;
                     }
                     html += '</table>';
                     document.getElementById('summaryContent').innerHTML = html;
@@ -813,13 +629,13 @@
                     document.getElementById('outputFileContent').textContent = JSON.stringify(result.xtb_json, null, 2);
                 } else if (result.psi4_json) {
                     document.getElementById('outputFileContent').textContent = JSON.stringify(result.psi4_json, null, 2);
-                } // do not clear if not present
+                }
                 // Log tab
                 if (result.log) {
                     document.getElementById('logFileContent').textContent = result.log;
                 } else if (result.stdout || result.stderr) {
                     document.getElementById('logFileContent').textContent = (result.stdout || '') + '\n' + (result.stderr || '');
-                } // do not clear if not present
+                }
                 // Render molecule if optimized geometry is present
                 let xyzToRender = null;
                 if (result.xtb_json && result.xtb_json.structure && result.xtb_json.structure.xyz) {
@@ -840,13 +656,12 @@
             } catch (err) {
                 showToastMsg('Network or server error: ' + err.message, true, err.stack || err);
                 document.getElementById('summaryContent').innerHTML = `<span style="color:#b00;">${err.message}</span>`;
-                // do not clear output/log tabs on error
             } finally {
                 btn.disabled = false;
                 btn.textContent = 'Submit Job';
                 showLoading(false);
             }
-        });
+        };
         // Tab switching (Bootstrap handles, but ensure only one .active tab-content)
         document.querySelectorAll('.nav-link').forEach(btn => {
             btn.addEventListener('click', function() {
@@ -972,6 +787,35 @@
             }
         });
     });
+
+    // --- Toast notification with details/copy support ---
+    function showToastMsg(msg, isError = false, details = null) {
+        const toastEl = document.getElementById('jobToast');
+        if (!toastEl) return;
+        const toastBody = toastEl.querySelector('.toast-body');
+        toastBody.innerHTML = `<strong>${isError ? 'Error' : 'Info'}:</strong> ${msg || ''}`;
+        if (details) {
+            toastBody.innerHTML += `<br><button class="btn btn-link btn-sm p-0" id="copyDetailsBtn" style="color:#fff;text-decoration:underline;">Copy details</button>`;
+        }
+        toastEl.classList.remove('text-bg-success', 'text-bg-danger');
+        toastEl.classList.add(isError ? 'text-bg-danger' : 'text-bg-success');
+        const toast = new bootstrap.Toast(toastEl);
+        toast.show();
+        if (details) {
+            setTimeout(() => {
+                const btn = document.getElementById('copyDetailsBtn');
+                if (btn) {
+                    btn.onclick = () => {
+                        navigator.clipboard.writeText(details.toString());
+                        btn.textContent = 'Copied!';
+                        setTimeout(() => { btn.textContent = 'Copy details'; }, 1200);
+                    };
+                }
+            }, 100);
+            // Also log details to console for debugging
+            console.error('[IAM Error Details]', details);
+        }
+    }
     </script>
 </body>
 </html>
