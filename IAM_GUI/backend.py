@@ -195,28 +195,26 @@ elif energy_type == 'freq':
 
         json_path = os.path.join(tempdir, "xtbout.json")
         xtbopt_xyz_path = os.path.join(tempdir, "xtbopt.xyz")
-        xyz_result = None
+        # --- PATCH: Always return the final geometry as 'xyz' ---
         if os.path.exists(xtbopt_xyz_path):
             with open(xtbopt_xyz_path, "r") as f:
-                xyz_result = f.read()
-        elif os.path.exists(xyz_path):
-            with open(xyz_path, "r") as f:
-                xyz_result = f.read()
+                xyz_string_final = f.read()
         else:
-            xyz_result = None
+            with open(xyz_path, "r") as f:
+                xyz_string_final = f.read()
 
         if not os.path.exists(json_path):
             return jsonify({
                 "success": False,
                 "error": "Fichier xtbout.json non trouvé",
                 "details": f"stdout: {result.stdout}\nstderr: {result.stderr}\nfile_preview: {''.join(lines[:10])}",
-                "xyz": xyz_result
+                "xyz": xyz_string_final
             }), 500
 
         with open(json_path, "r") as f:
             xtb_data = json.load(f)
 
-        return jsonify({"success": True, "xtb_json": xtb_data, "file_preview": ''.join(lines[:10]), "xyz": xyz_result})
+        return jsonify({"success": True, "xtb_json": xtb_data, "file_preview": ''.join(lines[:10]), "xyz": xyz_string_final})
 
 @app.route('/smiles_to_xyz', methods=['POST'])
 def smiles_to_xyz():

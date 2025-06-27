@@ -191,6 +191,45 @@ document.addEventListener("DOMContentLoaded", function () {
                 });
                 const result = await response.json();
 
+                // --- PATCH: Always update 3Dmol viewer with returned geometry ---
+                if (result.xyz) {
+                    const viewerDiv = document.getElementById("viewer");
+                    if (viewerDiv) {
+                        // Try to preserve background color if viewer already exists
+                        let bgColor = "white";
+                        if (viewerDiv.viewer && viewerDiv.viewer.getConfig) {
+                            const cfg = viewerDiv.viewer.getConfig();
+                            if (cfg && cfg.backgroundColor) bgColor = cfg.backgroundColor;
+                        }
+                        // Clear viewerDiv
+                        viewerDiv.innerHTML = '';
+                        let viewer;
+                        try {
+                            viewer = $3Dmol.createViewer(viewerDiv, { backgroundColor: bgColor });
+                            viewerDiv.viewer = viewer; // Store for later
+                        } catch (e) {
+                            alert('3Dmol.js failed to initialize: ' + e);
+                            throw e;
+                        }
+                        try {
+                            viewer.addModel(result.xyz.trim(), "xyz");
+                            viewer.setStyle({}, { stick: {} });
+                            viewer.zoomTo();
+                            viewer.render();
+                        } catch (e) {
+                            alert('Failed to render returned geometry: ' + e);
+                        }
+                    }
+                } else {
+                    // If xyz missing, show error/toast
+                    if (window.showToastMsg) {
+                        showToastMsg('No geometry returned from calculation.', true);
+                    } else {
+                        alert('No geometry returned from calculation.');
+                    }
+                }
+                // --- END PATCH ---
+
                 // Format summary output for XTB and future Psi4
                 if (result.success && result.xtb_json) {
                     const xtb = result.xtb_json;
