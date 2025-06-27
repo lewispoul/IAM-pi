@@ -14,23 +14,37 @@ header {
 
 .container {
     display: flex;
-    height: calc(100vh - 80px);
+    width: 100%;
 }
 
-.left-panel, .right-panel {
+.left-panel {
     flex: 1;
-    padding: 1em;
-    box-sizing: border-box;
+    padding: 2em;
+}
+
+.right-panel {
+    flex: 1;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    min-width: 400px;
+    min-height: 400px;
+    background: #fafcff;
+    border: 2px solid #2196f3;
+    margin: 1em;
+    border-radius: 8px;
 }
 
 #viewer {
-    width: 100%;
-    height: 350px;
-    background-color: #fff;
-    border: 1px solid #ccc;
+    width: 90%;
+    height: 380px;
+    min-width: 350px;
+    min-height: 350px;
+    background: white;
     border-radius: 8px;
-    margin-top: 0.5em;
-    margin-bottom: 1em;
+    box-sizing: border-box;
+    position: static !important;
+    z-index: 0 !important;
 }
 
 .controls {
@@ -156,6 +170,12 @@ button {
 }
 .tab-content.active {
     display: block;
+}
+
+@media (max-width: 1100px) {
+    .container { flex-direction: column; }
+    .right-panel, .left-panel { max-width: 100%; min-width: 0; }
+    #viewer { max-width: 100%; }
 }
 
 @media (max-width: 700px) {

@@ -1,67 +1,307 @@
+<!-- MAIN TEMPLATE: This is the only source of truth for the IAM web UI. -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>IAM Molecule Viewer</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <script src="https://3dmol.org/build/3Dmol-min.js"></script>
+    <title>IAM – Molecule Viewer & XTB Engine</title>
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
+    <style>
+        body {
+            background: #f6f9fb;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        .header-bar {
+            background: #0a85ff;
+            color: #fff;
+            padding: 2rem 0 1.2rem 0;
+            text-align: center;
+            font-size: 2.1rem;
+            font-weight: bold;
+            letter-spacing: 0.01em;
+            margin-bottom: 0;
+            border-bottom: 2px solid #0070cc;
+        }
+        .main-row {
+            min-height: 70vh;
+            margin: 0;
+        }
+        .panel-left {
+            background: #fff;
+            border-radius: 12px;
+            padding: 2rem 1.8rem 2rem 2rem;
+            box-shadow: 0 2px 12px 2px #d5e3f6;
+            min-width: 330px;
+        }
+        .panel-right {
+            background: #fafdff;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px 2px #d5e3f6;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-width: 420px;
+            position: relative;
+        }
+        #viewer {
+            width: 380px;
+            height: 380px;
+            background: white;
+            border: 3px solid #2196f3;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 8px 0 #d5e3f6;
+            position: relative !important;
+            z-index: 1 !important;
+            display: block;
+            overflow: hidden;
+        }
+        @media (max-width: 991px) {
+            .main-row {
+                flex-direction: column !important;
+            }
+            .panel-left, .panel-right {
+                min-width: unset;
+                width: 98vw;
+                margin: 1rem auto;
+            }
+            #viewer {
+                width: 98vw;
+                max-width: 380px;
+            }
+        }
+        .job-btn {
+            width: 100%;
+            font-size: 1.2rem;
+            padding: 0.8em 0;
+        }
+        .tab-content {
+            border: 1px solid #d1e5f7;
+            border-radius: 8px;
+            background: #fff;
+            padding: 1em;
+            width: 100%;
+            min-height: 150px;
+        }
+        .summary-table {
+            width: auto;
+            margin: 0 auto;
+        }
+    </style>
 </head>
 <body>
-    <header>
-        <h1>IAM – Molecule Viewer & XTB Engine</h1>
-    </header>
-
-    <div class="main-content">
-        <div class="card input-card">
-            <h2>1. Molecule Input</h2>
-            <textarea id="moleculeInput" rows="8" placeholder="Paste your .xyz or .mol file contents here"></textarea>
-            <div class="file-upload-row">
-                <label for="xyzFile">or upload file:</label>
-                <input type="file" id="xyzFile" accept=".xyz,.mol">
+    <div class="header-bar">
+        IAM – Molecule Viewer & XTB Engine
+    </div>
+    <div class="container-fluid">
+        <div class="row main-row d-flex flex-row justify-content-center align-items-start mt-4">
+            <!-- LEFT PANEL -->
+            <div class="col-lg-5 col-12 panel-left mb-4">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Molecule Sketcher</label>
+                    <div class="bg-light rounded p-3 text-center" style="height: 180px;">
+                        <!-- Place Ketcher, ChemDoodle, or a placeholder here -->
+                        <span style="color: #8fa9c9;">[Sketcher coming soon]</span>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold" for="xyzPaste">Paste .xyz or .mol</label>
+                    <textarea id="xyzPaste" class="form-control" rows="4" placeholder="Paste your molecule here"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold" for="xyzFile">Or upload file</label>
+                    <input type="file" id="xyzFile" class="form-control" accept=".xyz,.mol">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Job Options</label>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <select id="method" class="form-select">
+                                <option>XTB</option>
+                                <option disabled>DFT (soon)</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <select id="basis" class="form-select">
+                                <option>def2-SVP</option>
+                                <option>def2-TZVP</option>
+                                <option>6-31G*</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <input id="charge" class="form-control" type="number" placeholder="Charge" value="0">
+                        </div>
+                        <div class="col-6">
+                            <input id="multiplicity" class="form-control" type="number" placeholder="Multiplicity" value="1">
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <button id="launchIAMBtn" class="btn btn-primary job-btn">Submit Job</button>
+                </div>
             </div>
-        </div>
-
-        <div class="card options-card">
-            <h2>2. Job Options</h2>
-            <div class="options-row">
-                <label for="method">Method:</label>
-                <select id="method">
-                    <option value="xtb">XTB</option>
-                    <option value="psi4">Psi4</option>
-                </select>
-                <label for="basis">Basis Set:</label>
-                <select id="basis">
-                    <option value="def2-SVP">def2-SVP</option>
-                    <option value="def2-TZVP">def2-TZVP</option>
-                </select>
-                <label for="charge">Charge:</label>
-                <input type="number" id="charge" value="0" style="width: 60px;">
-                <label for="multiplicity">Multiplicity:</label>
-                <input type="number" id="multiplicity" value="1" style="width: 60px;">
-            </div>
-            <button class="submit-btn" onclick="launchIAM()">Submit Job</button>
-            <span id="jobStatus" class="job-status"></span>
-        </div>
-
-        <div class="card output-card">
-            <h2>3. Output</h2>
-            <div class="output-tabs">
-                <button class="tab-button active" onclick="showTab('summary')">Summary</button>
-                <button class="tab-button" onclick="showTab('input')">Input File</button>
-                <button class="tab-button" onclick="showTab('output')">Output File</button>
-            </div>
-            <div id="summary" class="tab-content active">
-                <pre id="summaryContent">No job submitted</pre>
-            </div>
-            <div id="input" class="tab-content">
-                <pre id="inputFileContent">No file</pre>
-            </div>
-            <div id="output" class="tab-content">
-                <pre id="outputFileContent">No result</pre>
+            <!-- RIGHT PANEL -->
+            <div class="col-lg-7 col-12 panel-right mb-4">
+                <div id="viewer"></div>
+                <!-- Tabs for results/output/logs -->
+                <ul class="nav nav-tabs mb-3" id="resultTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="summary-tab" data-bs-toggle="tab" data-bs-target="#summary" type="button" role="tab">Summary</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="output-tab" data-bs-toggle="tab" data-bs-target="#output" type="button" role="tab">Output</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="log-tab" data-bs-toggle="tab" data-bs-target="#log" type="button" role="tab">Log</button>
+                    </li>
+                </ul>
+                <div class="tab-content" id="resultTabsContent">
+                    <div class="tab-pane fade show active tab-content" id="summary" role="tabpanel">
+                        <span id="summaryContent" style="color: #8fa9c9;">Job summary and results will appear here.</span>
+                    </div>
+                    <div class="tab-pane fade tab-content" id="output" role="tabpanel">
+                        <span id="outputFileContent" style="color: #8fa9c9;">Output file will appear here.</span>
+                    </div>
+                    <div class="tab-pane fade tab-content" id="log" role="tabpanel">
+                        <span id="logFileContent" style="color: #8fa9c9;">Log file will appear here.</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
+    <script>
+    // 3Dmol.js viewer initialization (always in right panel)
+    let viewer3D = null;
+    function renderMolecule(xyzString) {
+        const viewerDiv = document.getElementById("viewer");
+        if (viewerDiv) {
+            viewerDiv.innerHTML = "";
+            viewer3D = $3Dmol.createViewer(viewerDiv, { backgroundColor: "white" });
+            if (xyzString) {
+                viewer3D.addModel(xyzString, "xyz");
+                viewer3D.setStyle({}, { stick: {} });
+                viewer3D.zoomTo();
+                viewer3D.render();
+            }
+        }
+    }
+    document.addEventListener("DOMContentLoaded", function () {
+        // Show molecule in viewer if pasted/uploaded
+        document.getElementById('xyzPaste').addEventListener('input', function () {
+            const val = this.value.trim();
+            if (val) renderMolecule(val);
+        });
+        document.getElementById('xyzFile').addEventListener('change', function () {
+            if (this.files.length) {
+                const reader = new FileReader();
+                reader.onload = function(e) { renderMolecule(e.target.result); };
+                reader.readAsText(this.files[0]);
+            }
+        });
+        // Job submission handler
+        document.getElementById('launchIAMBtn').addEventListener('click', async function () {
+            const btn = this;
+            btn.disabled = true;
+            btn.textContent = 'Submitting...';
+            const fileInput = document.getElementById('xyzFile');
+            const pasteInput = document.getElementById('xyzPaste').value.trim();
+            let formData = new FormData();
+            if (fileInput.files.length) {
+                formData.append('file', fileInput.files[0]);
+            } else if (pasteInput) {
+                const blob = new Blob([pasteInput], { type: 'text/plain' });
+                formData.append('file', blob, 'pasted.xyz');
+            } else {
+                alert('Please paste a molecule in XYZ or MOL format, or upload a file.');
+                btn.disabled = false; btn.textContent = 'Submit Job';
+                return;
+            }
+            formData.append('method', document.getElementById('method').value);
+            formData.append('basis', document.getElementById('basis').value);
+            formData.append('charge', document.getElementById('charge').value);
+            formData.append('multiplicity', document.getElementById('multiplicity').value);
+            // Show loading
+            document.getElementById('summaryContent').innerHTML = '<em>Submitting job...</em>';
+            document.getElementById('outputFileContent').textContent = '';
+            document.getElementById('logFileContent').textContent = '';
+            try {
+                const response = await fetch('/run_xtb', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                // Debug: log result
+                console.log('Backend result:', result);
+                // Summary tab formatting
+                if (result.success && result.xtb_json) {
+                    const xtb = result.xtb_json;
+                    let html = '<table class="table table-sm table-bordered w-auto summary-table">';
+                    if (xtb["total energy"]) html += `<tr><td>Total Energy (Eh)</td><td>${xtb["total energy"]}</td></tr>`;
+                    if (xtb["HOMO-LUMO gap/eV"]) html += `<tr><td>HOMO-LUMO gap (eV)</td><td>${xtb["HOMO-LUMO gap/eV"]}</td></tr>`;
+                    if (xtb["dipole"]) html += `<tr><td>Dipole moment (D)</td><td>${xtb["dipole"]}</td></tr>`;
+                    if (xtb["xtb version"]) html += `<tr><td>XTB version</td><td>${xtb["xtb version"]}</td></tr>`;
+                    html += '</table>';
+                    document.getElementById('summaryContent').innerHTML = html;
+                } else if (result.success && result.psi4_json) {
+                    const psi4 = result.psi4_json;
+                    let html = '<table class="table table-sm table-bordered w-auto summary-table">';
+                    if (psi4.final_energy) html += `<tr><td>Final Energy</td><td>${psi4.final_energy}</td></tr>`;
+                    if (psi4.psi4_version) html += `<tr><td>Psi4 Version</td><td>${psi4.psi4_version}</td></tr>`;
+                    html += '</table>';
+                    document.getElementById('summaryContent').innerHTML = html;
+                } else if (result.details) {
+                    document.getElementById('summaryContent').innerHTML = `<span style='color:#b00;'>${result.details}</span>`;
+                } else {
+                    document.getElementById('summaryContent').innerHTML = "<em>Calculation succeeded, but no summary data found.</em>";
+                }
+                // Output tab
+                if (result.output) {
+                    document.getElementById('outputFileContent').textContent = result.output;
+                } else if (result.xtb_json) {
+                    document.getElementById('outputFileContent').textContent = JSON.stringify(result.xtb_json, null, 2);
+                } else if (result.psi4_json) {
+                    document.getElementById('outputFileContent').textContent = JSON.stringify(result.psi4_json, null, 2);
+                } else {
+                    document.getElementById('outputFileContent').textContent = '';
+                }
+                // Log tab
+                if (result.log) {
+                    document.getElementById('logFileContent').textContent = result.log;
+                } else if (result.stdout || result.stderr) {
+                    document.getElementById('logFileContent').textContent = (result.stdout || '') + '\n' + (result.stderr || '');
+                } else {
+                    document.getElementById('logFileContent').textContent = '';
+                }
+                // Render molecule if xyz_result or file preview
+                if (result.xyz_result) {
+                    renderMolecule(result.xyz_result);
+                } else if (result.file_preview) {
+                    renderMolecule(result.file_preview);
+                }
+            } catch (err) {
+                document.getElementById('summaryContent').innerHTML = '<span style="color:#b00;">Error: ' + err.message + '</span>';
+                document.getElementById('outputFileContent').textContent = '';
+                document.getElementById('logFileContent').textContent = '';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Submit Job';
+            }
+        });
+        // Tab switching (Bootstrap handles, but ensure only one .active tab-content)
+        document.querySelectorAll('.nav-link').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.tab-pane').forEach(tab => tab.classList.remove('show', 'active'));
+                const target = document.querySelector(this.dataset.bsTarget);
+                if (target) target.classList.add('show', 'active');
+            });
+        });
+    });
+    </script>
 </body>
 </html>

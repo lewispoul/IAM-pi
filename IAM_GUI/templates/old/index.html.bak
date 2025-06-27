@@ -18,21 +18,21 @@
                 <div class="mol-builder-controls">
                     <label for="searchMolecule">Search for a molecule:</label>
                     <input type="text" id="searchMolecule" placeholder="e.g. water">
-                    <button type="button" onclick="searchMolecule()">Search</button>
+                    <button type="button" id="searchMoleculeBtn">Search</button>
                     <br>
                     <label for="smilesInput">Paste SMILES:</label>
                     <input type="text" id="smilesInput" placeholder="e.g. CCO">
-                    <button type="button" onclick="loadFromSMILES()">Load from SMILES</button>
+                    <button type="button" id="loadFromSMILESBtn">Load from SMILES</button>
                     <br>
                     <label for="xyzFile">or upload file:</label>
                     <input type="file" id="xyzFile" accept=".xyz,.mol">
                     <label for="xyzPaste">Paste your .xyz or .mol file contents here</label>
                     <textarea id="xyzPaste" rows="5" placeholder="Paste your .xyz or .mol file contents here" style="width:100%;font-family:monospace;"></textarea>
-                    <button type="button" style="margin:8px 0;width:100%;" onclick="loadFromPaste()">Load to 3D Viewer</button>
+                    <button type="button" style="margin:8px 0;width:100%;" id="loadFromPasteBtn">Load to 3D Viewer</button>
                 </div>
                 <div class="mol-builder-editor">
                     <iframe id="ketcherFrame" src="https://ketcher.epam.com/ketcher.html" width="500" height="350" style="border:1px solid #ccc;"></iframe>
-                    <button type="button" style="margin-top:8px; width:100%;" onclick="loadFromKetcher()">Load from Ketcher to 3D Viewer</button>
+                    <button type="button" style="margin-top:8px; width:100%;" id="loadFromKetcherBtn">Load from Ketcher to 3D Viewer</button>
                     <div style="font-size:0.95em; color:#555; margin-top:4px;">Draw or edit a molecule above, then click to view in 3D.</div>
                 </div>
             </div>
@@ -50,7 +50,7 @@
             <h2>2. Job Options</h2>
             <div class="options-row">
                 <label for="method">Method:</label>
-                <select id="method" onchange="togglePsi4Options()">
+                <select id="method">
                     <option value="xtb">XTB</option>
                     <option value="psi4">Psi4</option>
                 </select>
@@ -85,16 +85,16 @@
                     <option value="ethanol">Ethanol</option>
                 </select>
             </div>
-            <button class="submit-btn" onclick="launchIAM()">Submit Job</button>
+            <button class="submit-btn" id="launchIAMBtn">Submit Job</button>
             <span id="jobStatus" class="job-status"></span>
         </div>
 
         <div class="card output-card">
             <h2>3. Output</h2>
             <div class="output-tabs">
-                <button class="tab-button active" onclick="showTab('summary')">Summary</button>
-                <button class="tab-button" onclick="showTab('input')">Input File</button>
-                <button class="tab-button" onclick="showTab('output')">Output File</button>
+                <button class="tab-button active" id="tabSummaryBtn">Summary</button>
+                <button class="tab-button" id="tabInputBtn">Input File</button>
+                <button class="tab-button" id="tabOutputBtn">Output File</button>
             </div>
             <div id="summary" class="tab-content active">
                 <pre id="summaryContent">No job submitted</pre>

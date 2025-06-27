@@ -11,6 +11,8 @@ __pycache__/
 *.so
 *.pyd
 *.dll
+*.pyc
+*.pyo
 
 # Distribution files
 build/
@@ -35,3 +37,21 @@ pip-delete-this-directory.txt
 
 # VSCode settings
 .vscode/
+
+# Ignore logs and outputs
+*.log
+*.out
+*.cube
+xtb_output/
+IAM_Results/
+
+# Ignore Zone.Identifier and system files
+*.Zone.Identifier
+.trash/
+.DS_Store
+Thumbs.db
+
+# Ignore legacy/duplicate/obsolete folders
+webui/
+legacy*/
+duplicat*/
