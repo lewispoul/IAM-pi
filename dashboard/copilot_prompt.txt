@@ -1,0 +1,1 @@
+Ajoute une route Flask pour afficher le dashboard, et un bouton HTML dans l’interface.
