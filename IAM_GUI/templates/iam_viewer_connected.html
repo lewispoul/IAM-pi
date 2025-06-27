@@ -374,6 +374,11 @@
         if (typeof renderMolecule === 'function') {
             renderMolecule(lastXyzString);
         }
+        // Also update summary table responsiveness in dark mode
+        const summaryTab = document.getElementById('summary');
+        if (summaryTab) {
+            summaryTab.classList.toggle('table-responsive', enabled);
+        }
     }
     document.addEventListener("DOMContentLoaded", function () {
         // --- Sketcher/Ketcher Integration ---
@@ -403,37 +408,65 @@
             });
             ketcherFrame.contentWindow.postMessage({type: 'get-smiles'}, '*');
         }
-        // Load from Sketcher
-        document.getElementById('loadFromSketcher').addEventListener('click', function() {
-            getKetcherMol(function(mol) {
-                if (!mol) return alert('No molecule in sketcher.');
-                fetch('/run_xtb', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({input: mol, input_format: 'mol', output_format: 'xyz'})
-                })
-                .then(async r => {
-                    let data;
-                    try { data = await r.json(); } catch (jsonErr) {
-                        showToastMsg('Server error: Invalid JSON response', true, jsonErr.stack || jsonErr);
-                        throw jsonErr;
-                    }
-                    if (!r.ok || !data.success) {
-                        const msg = (data && (data.error || data.details)) ? `${data.error || 'Error'}: ${data.details || ''}` : 'Unknown error occurred';
-                        showToastMsg(msg, true, data.details);
-                        document.getElementById('summaryContent').innerHTML = `<span style='color:#b00;'>${msg}</span>`;
+        // Load from Sketcher (robust: get MOL from Ketcher, send to /run_xtb, update UI, handle errors)
+        document.getElementById('loadFromSketcher').addEventListener('click', function () {
+            const ketcherFrame = document.getElementById('ketcherFrame');
+            if (!ketcherFrame) {
+                showToastMsg('Ketcher iframe not found!', true);
+                return;
+            }
+            let replied = false;
+            function handler(event) {
+                if (!event.data || (event.source !== ketcherFrame.contentWindow)) return;
+                if (event.data.type === 'ketcher:get-mol') {
+                    replied = true;
+                    window.removeEventListener('message', handler);
+                    if (!event.data.mol) {
+                        showToastMsg('No molecule in sketcher.', true);
                         return;
                     }
-                    currentMol = mol;
-                    currentXyz = data.xyz;
-                    renderMolecule(data.xyz);
-                    showToastMsg('Molecule loaded from sketcher.');
-                })
-                .catch(err => {
-                    showToastMsg('Network or server error: ' + err.message, true, err.stack || err);
-                    document.getElementById('summaryContent').innerHTML = `<span style='color:#b00;'>${err.message}</span>`;
-                });
-            });
+                    // Preview in viewer immediately
+                    document.getElementById('molPaste').value = event.data.mol;
+                    // Convert to XYZ for viewer preview
+                    fetch('/molfile_to_xyz', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ molfile: event.data.mol })
+                    })
+                    .then(async r => {
+                        let data;
+                        try { data = await r.json(); } catch (jsonErr) {
+                            showToastMsg('Server error: Invalid JSON response', true, jsonErr.stack || jsonErr);
+                            throw jsonErr;
+                        }
+                        if (!r.ok || !data.success || !data.xyz) {
+                            const msg = (data && (data.error || data.details)) ? `${data.error || 'Error'}: ${data.details || ''}` : 'Unknown error occurred';
+                            showToastMsg(msg, true, data.details);
+                            renderMolecule("");
+                            return;
+                        }
+                        renderMolecule(data.xyz);
+                        showToastMsg('Molecule loaded from sketcher.');
+                    })
+                    .catch(err => {
+                        showToastMsg('Network or server error: ' + err.message, true, err.stack || err);
+                        renderMolecule("");
+                    });
+                }
+            }
+            window.addEventListener('message', handler);
+            ketcherFrame.contentWindow.postMessage({ type: 'get-mol' }, '*');
+            setTimeout(() => {
+                if (!replied) {
+                    ketcherFrame.contentWindow.postMessage({ type: 'getMolfile' }, '*');
+                }
+            }, 300);
+            setTimeout(() => {
+                if (!replied) {
+                    window.removeEventListener('message', handler);
+                    showToastMsg('No response from Ketcher sketcher. Is it loaded and same-origin?', true);
+                }
+            }, 2000);
         });
         // Export/Copy buttons
         document.getElementById('exportSmiles').addEventListener('click', function() {
@@ -486,20 +519,18 @@
                     showToastMsg('Server error: Invalid JSON response', true, jsonErr.stack || jsonErr);
                     throw jsonErr;
                 }
-                if (!r.ok || !data.success) {
+                if (!r.ok || !data.success || !data.xyz) {
                     const msg = (data && (data.error || data.details)) ? `${data.error || 'Error'}: ${data.details || ''}` : 'Unknown error occurred';
                     showToastMsg(msg, true, data.details);
-                    document.getElementById('summaryContent').innerHTML = `<span style='color:#b00;'>${msg}</span>`;
+                    renderMolecule("");
                     return;
                 }
-                currentSmiles = smiles;
-                currentXyz = data.xyz;
                 renderMolecule(data.xyz);
                 showToastMsg('SMILES imported and rendered.');
             })
             .catch(err => {
                 showToastMsg('Network or server error: ' + err.message, true, err.stack || err);
-                document.getElementById('summaryContent').innerHTML = `<span style='color:#b00;'>${err.message}</span>`;
+                renderMolecule("");
             });
         });
         // Import MOL/XYZ
@@ -507,143 +538,15 @@
             const mol = document.getElementById('molPaste').value.trim();
             if (!mol) return;
             let input_format = mol.startsWith('M  END') || mol.includes('V2000') ? 'mol' : 'xyz';
-            fetch('/run_xtb', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({input: mol, input_format, output_format: 'xyz'})
-            })
-            .then(async r => {
-                let data;
-                try { data = await r.json(); } catch (jsonErr) {
-                    showToastMsg('Server error: Invalid JSON response', true, jsonErr.stack || jsonErr);
-                    throw jsonErr;
-                }
-                if (!r.ok || !data.success) {
-                    const msg = (data && (data.error || data.details)) ? `${data.error || 'Error'}: ${data.details || ''}` : 'Unknown error occurred';
-                    showToastMsg(msg, true, data.details);
-                    document.getElementById('summaryContent').innerHTML = `<span style='color:#b00;'>${msg}</span>`;
-                    return;
-                }
-                currentMol = mol;
-                currentXyz = data.xyz;
-                renderMolecule(data.xyz);
-                showToastMsg('Structure imported and rendered.');
-            })
-            .catch(err => {
-                showToastMsg('Network or server error: ' + err.message, true, err.stack || err);
-                document.getElementById('summaryContent').innerHTML = `<span style='color:#b00;'>${err.message}</span>`;
-            });
-        });
-        // File upload (robust, always render or show error)
-        document.getElementById('xyzFile').addEventListener('change', function () {
-            if (this.files.length) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const text = e.target.result;
-                    let input_format = text.startsWith('M  END') || text.includes('V2000') ? 'mol' : (text.includes(' ') && text.match(/\d+\n[A-Z]/) ? 'xyz' : 'smiles');
-                    fetch('/run_xtb', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({input: text, input_format, output_format: 'xyz'})
-                    })
-                    .then(async r => {
-                        let data;
-                        try { data = await r.json(); } catch (jsonErr) {
-                            showToastMsg('Server error: Invalid JSON response', true, jsonErr.stack || jsonErr);
-                            throw jsonErr;
-                        }
-                        if (!r.ok || !data.success) {
-                            const msg = (data && (data.error || data.details)) ? `${data.error || 'Error'}: ${data.details || ''}` : 'Unknown error occurred';
-                            showToastMsg(msg, true, data.details);
-                            document.getElementById('summaryContent').innerHTML = `<span style='color:#b00;'>${msg}</span>`;
-                            renderMolecule("");
-                            return;
-                        }
-                        currentXyz = data.xyz;
-                        renderMolecule(data.xyz);
-                        showToastMsg('File imported and rendered.');
-                    })
-                    .catch(err => {
-                        showToastMsg('Network or server error: ' + err.message, true, err.stack || err);
-                        document.getElementById('summaryContent').innerHTML = `<span style='color:#b00;'>${err.message}</span>`;
-                        renderMolecule("");
-                    });
-                };
-                reader.readAsText(this.files[0]);
-            }
-        });
-        // Helper: download text as file
-        function downloadText(text, filename) {
-            const blob = new Blob([text], {type:'text/plain'});
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        }
-        // Helper: copy to clipboard
-        function copyToClipboard(text) {
-            navigator.clipboard.writeText(text);
-        }
-        // Helper: show toast message (add error support, with details and copy button)
-        function showToastMsg(msg, isError, details) {
-            let toastEl = document.getElementById('sketcherToast');
-            if (!toastEl) {
-                toastEl = document.createElement('div');
-                toastEl.id = 'sketcherToast';
-                toastEl.className = 'toast align-items-center border-0 position-fixed bottom-0 start-0 m-3';
-                toastEl.setAttribute('role', 'alert');
-                toastEl.setAttribute('aria-live', 'assertive');
-                toastEl.setAttribute('aria-atomic', 'true');
-                toastEl.innerHTML = `<div class="d-flex"><div class="toast-body"></div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>`;
-                document.body.appendChild(toastEl);
-            }
-            toastEl.classList.remove('text-bg-success', 'text-bg-danger');
-            toastEl.classList.add(isError ? 'text-bg-danger' : 'text-bg-success');
-            let body = toastEl.querySelector('.toast-body');
-            body.innerHTML = msg;
-            // Add details and copy button if error and details present
-            if (isError && details) {
-                body.innerHTML += `<br><small style='font-size:0.9em;color:#eee;'><b>Details:</b> <span id='toastDetails'>${details.replace(/</g,'&lt;')}</span></small>`;
-                body.innerHTML += ` <button id='copyDetailsBtn' class='btn btn-sm btn-outline-light ms-2 py-0 px-2' style='font-size:0.8em;'>Copy details</button>`;
-                setTimeout(() => {
-                    const btn = document.getElementById('copyDetailsBtn');
-                    if (btn) btn.onclick = function() {
-                        const det = document.getElementById('toastDetails').innerText;
-                        navigator.clipboard.writeText(det);
-                        btn.textContent = 'Copied!';
-                        setTimeout(()=>{btn.textContent='Copy details';}, 1200);
-                    };
-                }, 100);
-            }
-            const toast = new bootstrap.Toast(toastEl);
-            toast.show();
-            // Always log details to console for debugging
-            if (isError && details) {
-                console.error('Error details:', details);
-            }
-        }
-        // Viewer controls
-        document.getElementById('viewerBg').addEventListener('change', function() {
-            setViewerBg(this.value);
-        });
-        document.getElementById('viewerReset').addEventListener('click', resetViewer);
-        document.getElementById('viewerCenter').addEventListener('click', centerViewer);
-        document.getElementById('viewerRotate').addEventListener('click', toggleRotation);
-        // Show molecule in viewer if pasted/uploaded (molPaste)
-        document.getElementById('molPaste').addEventListener('input', function () {
-            const mol = this.value.trim();
-            if (!mol) {
-                renderMolecule("");
-                return;
-            }
-            // Try to detect format and convert to xyz if needed
-            let input_format = mol.startsWith('M  END') || mol.includes('V2000') ? 'mol' : 'xyz';
             if (input_format === 'xyz') {
-                renderMolecule(mol);
+                try {
+                    renderMolecule(mol);
+                    showToastMsg('XYZ imported and rendered.');
+                } catch (e) {
+                    showToastMsg('Invalid XYZ format: ' + e.message, true, e.stack || e);
+                    renderMolecule("");
+                }
             } else {
-                // Convert MOL to XYZ for viewer
                 fetch('/molfile_to_xyz', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -656,6 +559,161 @@
                         throw jsonErr;
                     }
                     if (!r.ok || !data.success) {
+                        const msg = (data && (data.error || data.details)) ? `${data.error || 'Error'}: ${data.details || ''}` : 'Unknown error occurred';
+                        showToastMsg(msg, true, data.details);
+                        document.getElementById('summaryContent').innerHTML = `<span style='color:#b00;'>${msg}</span>`;
+                        return;
+                    }
+                    currentMol = mol;
+                    currentXyz = data.xyz;
+                    renderMolecule(data.xyz);
+                    showToastMsg('Structure imported and rendered.');
+                })
+                .catch(err => {
+                    showToastMsg('Network or server error: ' + err.message, true, err.stack || err);
+                    document.getElementById('summaryContent').innerHTML = `<span style='color:#b00;'>${err.message}</span>`;
+                });
+            }
+        });
+        // File upload (robust, always render or show error)
+        document.getElementById('xyzFile').addEventListener('change', function () {
+            if (this.files.length) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const text = e.target.result;
+                    let input_format = text.startsWith('M  END') || text.includes('V2000') ? 'mol' : (text.includes(' ') && text.match(/\d+\n[A-Z]/) ? 'xyz' : 'smiles');
+                    if (input_format === 'xyz') {
+                        try {
+                            renderMolecule(text);
+                            showToastMsg('XYZ file previewed.');
+                        } catch (e) {
+                            showToastMsg('Invalid XYZ format: ' + e.message, true, e.stack || e);
+                            renderMolecule("");
+                        }
+                    } else if (input_format === 'mol') {
+                        fetch('/molfile_to_xyz', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({molfile: text})
+                        })
+                        .then(async r => {
+                            let data;
+                            try { data = await r.json(); } catch (jsonErr) {
+                                showToastMsg('Server error: Invalid JSON response', true, jsonErr.stack || jsonErr);
+                                throw jsonErr;
+                            }
+                            if (!r.ok || !data.success || !data.xyz) {
+                                const msg = (data && (data.error || data.details)) ? `${data.error || 'Error'}: ${data.details || ''}` : 'Unknown error occurred';
+                                showToastMsg(msg, true, data.details);
+                                renderMolecule("");
+                                return;
+                            }
+                            renderMolecule(data.xyz);
+                            showToastMsg('MOL file previewed.');
+                        })
+                        .catch(err => {
+                            showToastMsg('Network or server error: ' + err.message, true, err.stack || err);
+                            renderMolecule("");
+                        });
+                    } else {
+                        showToastMsg('Unsupported file format for preview.', true);
+                        renderMolecule("");
+                    }
+                };
+                reader.readAsText(this.files[0]);
+            }
+        });
+        // --- Fix 3: Make summary/output/log tabs scrollable and never overflow ---
+        // Add CSS for max-height and overflow
+        const style = document.createElement('style');
+        style.innerHTML = `
+        #resultTabsContent { max-height: 350px; overflow-y: auto; }
+        .tab-pane { max-height: 340px; overflow-y: auto; }
+        .summary-table td, .summary-table th { word-break: break-all; max-width: 220px; }
+        `;
+        document.head.appendChild(style);
+        // --- Fix 4: Reset button clears all fields, viewer, and results ---
+        document.getElementById('resetBtn').addEventListener('click', function() {
+            document.getElementById('molPaste').value = '';
+            document.getElementById('smilesPaste').value = '';
+            document.getElementById('xyzFile').value = '';
+            document.getElementById('method').selectedIndex = 0;
+            document.getElementById('basis').selectedIndex = 0;
+            document.getElementById('charge').value = 0;
+            document.getElementById('multiplicity').value = 1;
+            document.getElementById('summaryContent').innerHTML = 'Job summary and results will appear here.';
+            document.getElementById('outputFileContent').innerHTML = 'Output file will appear here.';
+            document.getElementById('logFileContent').innerHTML = 'Log file will appear here.';
+            renderMolecule("");
+            const ketcherFrame = document.getElementById('ketcherFrame');
+            if (ketcherFrame && ketcherFrame.contentWindow) {
+                ketcherFrame.contentWindow.postMessage({type: 'reset'}, '*');
+            }
+        });
+        // --- Fix: Preview on SMILES import as well ---
+        document.getElementById('importSmiles').addEventListener('click', function() {
+            const smiles = document.getElementById('smilesPaste').value.trim();
+            if (!smiles) return;
+            fetch('/run_xtb', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({input: smiles, input_format: 'smiles', output_format: 'xyz'})
+            })
+            .then(async r => {
+                let data;
+                try { data = await r.json(); } catch (jsonErr) {
+                    showToastMsg('Server error: Invalid JSON response', true, jsonErr.stack || jsonErr);
+                    throw jsonErr;
+                }
+                if (!r.ok || !data.success || !data.xyz) {
+                    const msg = (data && (data.error || data.details)) ? `${data.error || 'Error'}: ${data.details || ''}` : 'Unknown error occurred';
+                    showToastMsg(msg, true, data.details);
+                    renderMolecule("");
+                    return;
+                }
+                renderMolecule(data.xyz);
+                showToastMsg('SMILES imported and rendered.');
+            })
+            .catch(err => {
+                showToastMsg('Network or server error: ' + err.message, true, err.stack || err);
+                renderMolecule("");
+            });
+        });
+        // Viewer controls
+        document.getElementById('viewerBg').addEventListener('change', function() {
+            setViewerBg(this.value);
+        });
+        document.getElementById('viewerReset').addEventListener('click', resetViewer);
+        document.getElementById('viewerCenter').addEventListener('click', centerViewer);
+        document.getElementById('viewerRotate').addEventListener('click', toggleRotation);
+        // Show molecule in viewer if pasted/uploaded (molPaste) - only show error if viewer fails
+        document.getElementById('molPaste').addEventListener('input', function () {
+            const mol = this.value.trim();
+            if (!mol) {
+                renderMolecule("");
+                return;
+            }
+            let input_format = mol.startsWith('M  END') || mol.includes('V2000') ? 'mol' : 'xyz';
+            if (input_format === 'xyz') {
+                try {
+                    renderMolecule(mol);
+                } catch (e) {
+                    showToastMsg('Invalid XYZ format: ' + e.message, true, e.stack || e);
+                    renderMolecule("");
+                }
+            } else {
+                fetch('/molfile_to_xyz', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({molfile: mol})
+                })
+                .then(async r => {
+                    let data;
+                    try { data = await r.json(); } catch (jsonErr) {
+                        showToastMsg('Server error: Invalid JSON response', true, jsonErr.stack || jsonErr);
+                        throw jsonErr;
+                    }
+                    if (!r.ok || !data.success || !data.xyz) {
                         const msg = (data && (data.error || data.details)) ? `${data.error || 'Error'}: ${data.details || ''}` : 'Unknown error occurred';
                         showToastMsg(msg, true, data.details);
                         renderMolecule("");
@@ -883,6 +941,35 @@
         }
         darkSwitch.addEventListener('change', function() {
             setDarkMode(this.checked);
+        });
+        // Make summary/results table responsive and limit width
+        const summaryContent = document.getElementById('summaryContent');
+        if (summaryContent) {
+            summaryContent.parentElement.classList.add('table-responsive');
+            summaryContent.parentElement.style.maxWidth = '100%';
+            summaryContent.parentElement.style.overflowX = 'auto';
+        }
+        // Fix Reset button to clear all inputs, viewer, results, and Ketcher
+        document.getElementById('resetBtn').addEventListener('click', function() {
+            // Clear all inputs
+            document.getElementById('molPaste').value = '';
+            document.getElementById('smilesPaste').value = '';
+            document.getElementById('xyzFile').value = '';
+            document.getElementById('method').selectedIndex = 0;
+            document.getElementById('basis').selectedIndex = 0;
+            document.getElementById('charge').value = 0;
+            document.getElementById('multiplicity').value = 1;
+            // Clear results
+            document.getElementById('summaryContent').innerHTML = 'Job summary and results will appear here.';
+            document.getElementById('outputFileContent').innerHTML = 'Output file will appear here.';
+            document.getElementById('logFileContent').innerHTML = 'Log file will appear here.';
+            // Clear 3D viewer
+            renderMolecule("");
+            // Reset Ketcher via postMessage
+            const ketcherFrame = document.getElementById('ketcherFrame');
+            if (ketcherFrame && ketcherFrame.contentWindow) {
+                ketcherFrame.contentWindow.postMessage({type: 'reset'}, '*');
+            }
         });
     });
     </script>
