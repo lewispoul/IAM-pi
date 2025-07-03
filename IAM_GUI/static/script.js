@@ -17,6 +17,29 @@ document.addEventListener("DOMContentLoaded", function () {
         if (tabName === 'output' && document.getElementById('tabOutputBtn')) document.getElementById('tabOutputBtn').classList.add('active');
     }
 
+    // --- Improved showTab for IAM Tools and all custom tabs ---
+    function showTab(id) {
+        // Hide all tab contents
+        document.querySelectorAll('.tab-content').forEach(div => {
+            div.style.display = 'none';
+        });
+
+        // Remove 'active' class from all tab buttons
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.classList.remove('active');
+        });
+
+        // Show the selected tab
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'block';
+
+        // Add 'active' class to the clicked button
+        const button = Array.from(document.querySelectorAll('.tab-button')).find(btn => btn.onclick?.toString().includes(id));
+        if (button) {
+            button.classList.add('active');
+        }
+    }
+
     // Attach tab button listeners if elements exist
     if (document.getElementById('tabSummaryBtn')) document.getElementById('tabSummaryBtn').addEventListener('click', function() { showTab('summary'); });
     if (document.getElementById('tabInputBtn')) document.getElementById('tabInputBtn').addEventListener('click', function() { showTab('input'); });

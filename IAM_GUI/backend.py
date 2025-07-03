@@ -373,14 +373,11 @@ def patch_molblock(molblock: str) -> str:
 # mol = Chem.MolFromMolBlock(molblock)
 
 
-from flask import send_from_directory
-import os
+from flask import render_template
 
 @app.route('/dashboard')
 def dashboard():
-    dashboard_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../dashboard'))
-    return send_from_directory(dashboard_path, 'IAM_StatusDashboard.html')
-
+    return render_template('IAM_StatusDashboard.html')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
