@@ -1,3 +1,26 @@
+Comment utiliser votre agent :
+Lancement simple :
+python3 IAM_Agent.py --full-agent
+
+Avec le script :
+./launch_chatgpt_agent.sh
+
+Fonctionnalités disponibles :
+📁 Gestion de fichiers : Lire, écrire, créer, supprimer des fichiers
+🐍 Exécution Python : Exécuter du code Python en temps réel
+🖥️ Commandes shell : Exécuter des commandes système
+📦 Installation packages : Installer des libraries Python
+⚗️ Calculs XTB : Interface avec les outils de chimie computationnelle
+🔍 Exploration : Naviguer dans vos dossiers et fichiers
+
+Une fois lancé, vous pourrez dire à votre agent :
+
+"Liste les fichiers dans IAM_Knowledge/"
+"Crée un script Python qui calcule la moyenne de [1,2,3,4,5]"
+"Installe matplotlib et crée un graphique"
+"Analyse les données dans le dossier results/"
+"Exécute ls -la pour voir les permissions"
+
 # IAM Molecule Viewer
 
 **Une interface moderne pour visualiser et analyser des molécules, faire des calculs de chimie computationnelle, accessible sur Linux et Windows (via WSL).**
