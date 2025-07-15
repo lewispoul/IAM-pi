@@ -76,26 +76,7 @@ def embed_molecule_with_3d(mol):
         raise ImportError("RDKit non disponible")
     
     try:
-        # Vérifier si on a déjà des coordonnées 3D
-        conf = mol.GetConformer() if mol.GetNumConformers() > 0 else None
-        has_3d_coords = False
-        
-        if conf:
-            # Vérifier si les coordonnées sont vraiment 3D (pas toutes à z=0)
-            z_coords = [conf.GetAtomPosition(i).z for i in range(mol.GetNumAtoms())]
-            has_3d_coords = any(abs(z) > 0.01 for z in z_coords)
-            
-            # Vérifier aussi si on a des coordonnées non-nulles
-            all_coords = [(conf.GetAtomPosition(i).x, conf.GetAtomPosition(i).y, conf.GetAtomPosition(i).z) 
-                         for i in range(mol.GetNumAtoms())]
-            has_non_zero_coords = any(abs(x) > 0.01 or abs(y) > 0.01 or abs(z) > 0.01 
-                                    for x, y, z in all_coords)
-            
-        if has_3d_coords or has_non_zero_coords:
-            print("✅ Coordonnées existantes conservées (2D/3D valides)")
-            return mol
-        
-        # Étape 1: Générer plusieurs conformères et choisir le meilleur
+        # Méthode 1: ETKDG (recommandée)
         params = None
         if hasattr(rdDistGeom, "ETKDGv3"):
             params = rdDistGeom.ETKDGv3()
@@ -104,107 +85,30 @@ def embed_molecule_with_3d(mol):
         elif hasattr(rdDistGeom, "ETKDG"):
             params = rdDistGeom.ETKDG()
         
-        if params:
-            params.randomSeed = 42  # Pour la reproductibilité
-            # Ne pas définir maxAttempts si pas supporté
-            if hasattr(params, 'maxAttempts'):
-                params.maxAttempts = 10
-            if hasattr(params, 'pruneRmsThresh'):
-                params.pruneRmsThresh = 0.1
+        if params is not None:
+            result = AllChem.EmbedMolecule(mol, params)
+        else:
+            result = AllChem.EmbedMolecule(mol)
         
-        # Essayer d'embedding multiple
-        success = False
-        for attempt in range(3):
-            try:
-                # Essayer avec des paramètres différents à chaque tentative
-                if attempt == 0 and params:
-                    # Paramètres ETKDG optimisés
-                    result = AllChem.EmbedMolecule(mol, params)
-                elif attempt == 1:
-                    # Méthode distance geometry avec coordonnées aléatoires
-                    result = AllChem.EmbedMolecule(mol, useRandomCoords=True)
-                else:
-                    # Méthode basique
-                    result = AllChem.EmbedMolecule(mol)
-                
-                if result == 0:
-                    success = True
-                    print(f"✅ Embedding réussi (tentative {attempt + 1})")
-                    break
-                    
-            except Exception as e:
-                print(f"⚠️ Tentative {attempt + 1} échouée: {e}")
-                continue
+        if result != 0:
+            # Fallback: méthode standard
+            result = AllChem.EmbedMolecule(mol)
+            if result != 0:
+                print("⚠️ Warning: Failed to embed 3D coordinates")
         
-        if not success:
-            print("❌ Tous les embeddings ont échoué, génération de coordonnées basiques")
-            # Génération de coordonnées très simples en fallback
-            generate_basic_3d_coords(mol)
-            return mol
-        
-        # Étape 2: Optimisation géométrique douce
+        # Optimisation géométrique
         try:
-            # Utiliser MMFF si disponible (plus robuste que UFF)
-            if AllChem.MMFFHasAllMoleculeParams(mol):
-                mmff_props = AllChem.MMFFGetMoleculeProperties(mol)
-                ff = AllChem.MMFFGetMoleculeForceField(mol, mmff_props)
-                if ff:
-                    ff.Minimize(maxIts=200)
-                    print("✅ Optimisation MMFF réussie")
-                else:
-                    raise Exception("MMFF force field creation failed")
-            else:
-                # Fallback vers UFF avec précautions
-                if AllChem.UFFHasAllMoleculeParams(mol):
-                    ff = AllChem.UFFGetMoleculeForceField(mol)
-                    if ff:
-                        # Optimisation très douce pour éviter les déformations
-                        ff.Minimize(maxIts=50)
-                        print("✅ Optimisation UFF réussie")
-                    else:
-                        print("⚠️ UFF force field non disponible")
-                else:
-                    print("⚠️ Pas de paramètres UFF, skip optimisation")
-                    
+            if hasattr(AllChem, "UFFOptimizeMolecule"):
+                AllChem.UFFOptimizeMolecule(mol)
+            elif hasattr(rdForceFieldHelpers, "UFFOptimizeMolecule"):
+                rdForceFieldHelpers.UFFOptimizeMolecule(mol)
         except Exception as opt_error:
-            print(f"⚠️ Optimisation échouée: {opt_error}, utilisation coordonnées brutes")
+            print(f"⚠️ Warning: Optimization failed: {opt_error}")
         
         return mol
-        
     except Exception as e:
         print(f"❌ Erreur embed_molecule_3d: {e}")
-        # En cas d'erreur totale, essayer de générer des coordonnées basiques
-        try:
-            generate_basic_3d_coords(mol)
-        except:
-            pass
         return mol
-
-
-def generate_basic_3d_coords(mol):
-    """Génère des coordonnées 3D basiques pour une molécule (fallback)"""
-    try:
-        import math
-        num_atoms = mol.GetNumAtoms()
-        
-        # Créer un conformer vide
-        conf = Chem.Conformer(num_atoms)
-        
-        # Disposer les atomes en spirale simple
-        for i in range(num_atoms):
-            angle = 2 * math.pi * i / max(num_atoms, 1)
-            radius = 1.5  # Distance raisonnable
-            x = radius * math.cos(angle)
-            y = radius * math.sin(angle)
-            z = 0.5 * (i % 3 - 1)  # Légère variation en Z
-            
-            conf.SetAtomPosition(i, (x, y, z))
-        
-        mol.AddConformer(conf, assignId=True)
-        print("✅ Coordonnées 3D basiques générées")
-        
-    except Exception as e:
-        print(f"❌ Erreur génération coordonnées basiques: {e}")
 
 
 def debug_mol_content(mol_content, max_lines=10):
@@ -279,8 +183,7 @@ def robust_mol_to_xyz(mol_content, source="unknown"):
                     print("✅ RDKit parsing réussi (non-sanitized)")
                     # Essayer de sanitizer après coup
                     try:
-                        from rdkit import Chem as RDKitChem  # Import explicite
-                        RDKitChem.SanitizeMol(mol)
+                        Chem.SanitizeMol(mol)
                         print("✅ Sanitization post-parsing réussie")
                     except Exception:
                         print("⚠️ Sanitization a échoué, continue sans")
@@ -290,78 +193,30 @@ def robust_mol_to_xyz(mol_content, source="unknown"):
                 debug_mol_content(patched_mol)
         
         if mol is None:
-            # Debug approfondi avant de lever l'erreur
-            print(f"❌ ÉCHEC PARSING MOL depuis {source}")
-            print("🔍 Contenu MOL problématique:")
-            debug_mol_content(patched_mol, max_lines=15)
-            
-            # Tentative de récupération avec des approches alternatives
-            print("🔄 Tentatives de récupération...")
-            
-            # Fallback 1: Essayer de nettoyer davantage
-            try:
-                cleaned_mol = patched_mol.replace('\r', '').replace('\n\n', '\n')
-                lines = cleaned_mol.split('\n')
-                if len(lines) > 4:
-                    # Reconstruire un MOL minimal
-                    header = ["Molecule", "Generated by IAM", ""]
-                    counts_line = lines[3] if len(lines) > 3 else "  0  0  0  0  0  0  0  0  0  0999 V2000"
-                    minimal_mol = '\n'.join(header + [counts_line] + lines[4:])
-                    from rdkit import Chem as RDKitChem  # Import explicite sécurisé
-                    mol = RDKitChem.MolFromMolBlock(minimal_mol, sanitize=False)
-                    if mol:
-                        print("✅ Récupération réussie avec MOL minimal")
-                        RDKitChem.SanitizeMol(mol)
-            except Exception as e:
-                print(f"⚠️ Fallback 1 échoué: {e}")
-            
-            # Fallback 2: Parser seulement les atomes et créer une molécule simple
-            if mol is None:
-                try:
-                    mol = create_mol_from_atoms_only(patched_mol)
-                    if mol:
-                        print("✅ Récupération réussie avec atoms-only")
-                except Exception as e:
-                    print(f"⚠️ Fallback 2 échoué: {e}")
-            
-            # Si toujours échec, lever l'erreur avec plus d'infos
-            if mol is None:
-                raise ValueError(f"Impossible de parser le MOL depuis {source}. Vérifiez le format MOL.")
+            raise ValueError(f"Impossible de parser le MOL depuis {source}")
         
-        # Étape 4: Calculer les valences implicites 
+        # Étape 4: Calculer les valences implicites AVANT d'ajouter des hydrogènes
         try:
             for atom in mol.GetAtoms():
                 atom.UpdatePropertyCache(strict=False)
-            # Import rdMolOps de façon conditionnelle
-            try:
-                from rdkit.Chem import rdMolOps
-                rdMolOps.FastFindRings(mol)
-            except ImportError:
-                # Fallback pour versions anciennes de RDKit
-                from rdkit import Chem
-                Chem.FastFindRings(mol)
+            # Utiliser rdMolOps correctement
+            from rdkit.Chem import rdMolOps
+            rdMolOps.FastFindRings(mol)
             print("✅ Property cache updated")
         except Exception as e:
             print(f"⚠️ Warning: Property cache update failed: {e}")
             # Continuer sans - c'est pas critique
         
-        # Étape 5: Générer les coordonnées 3D AVANT d'ajouter les hydrogènes
+        # Étape 5: Ajouter les hydrogènes avec précaution
+        try:
+            mol = Chem.AddHs(mol, addCoords=False)
+            print("✅ Hydrogènes ajoutés")
+        except Exception as e:
+            print(f"⚠️ AddHs failed: {e}, continuing without explicit hydrogens")
+        
+        # Étape 6: Générer les coordonnées 3D
         mol = embed_molecule_with_3d(mol)
         print("✅ Coordonnées 3D générées")
-        
-        # Étape 6: Ajouter les hydrogènes APRÈS avoir les bonnes coordonnées 3D
-        try:
-            mol = Chem.AddHs(mol, addCoords=True)  # addCoords=True pour calculer positions H
-            print("✅ Hydrogènes ajoutés avec coordonnées")
-        except Exception as e:
-            print(f"⚠️ AddHs with coords failed: {e}, essai sans coordonnées")
-            try:
-                mol = Chem.AddHs(mol, addCoords=False)
-                # Regénérer les coordonnées après ajout des H
-                mol = embed_molecule_with_3d(mol)
-                print("✅ Hydrogènes ajoutés + coordonnées régénérées")
-            except Exception as e2:
-                print(f"⚠️ Échec total AddHs: {e2}, continuing sans hydrogènes explicites")
         
         # Étape 7: Convertir en XYZ
         try:
@@ -378,89 +233,6 @@ def robust_mol_to_xyz(mol_content, source="unknown"):
     except Exception as e:
         print(f"❌ Erreur conversion MOL→XYZ: {str(e)}")
         raise ValueError(f"Erreur conversion MOL→XYZ: {str(e)}")
-
-
-def create_mol_from_atoms_only(mol_content):
-    """Crée une molécule RDKit en parsant seulement les atomes (fallback de dernier recours)"""
-    if not RDKIT_AVAILABLE:
-        return None
-    
-    try:
-        lines = mol_content.splitlines()
-        
-        # Trouver la ligne de comptage
-        counts_line_idx = -1
-        for i, line in enumerate(lines):
-            if 'V2000' in line or (len(line.split()) >= 2 and line.split()[0].isdigit() and line.split()[1].isdigit()):
-                counts_line_idx = i
-                break
-        
-        if counts_line_idx == -1:
-            return None
-        
-        # Parser le nombre d'atomes
-        counts_parts = lines[counts_line_idx].split()
-        if len(counts_parts) < 1:
-            return None
-        
-        try:
-            num_atoms = int(counts_parts[0])
-        except ValueError:
-            return None
-        
-        if num_atoms <= 0 or num_atoms > 1000:  # Limite raisonnable
-            return None
-        
-        # Parser les atomes
-        atoms_data = []
-        for i in range(counts_line_idx + 1, min(len(lines), counts_line_idx + 1 + num_atoms)):
-            line = lines[i].strip()
-            if not line or line.startswith('M  '):
-                break
-            
-            parts = line.split()
-            if len(parts) >= 4:
-                try:
-                    x, y, z = float(parts[0]), float(parts[1]), float(parts[2])
-                    symbol = parts[3].strip()
-                    
-                    # Valider le symbole
-                    valid_symbols = ['H', 'C', 'N', 'O', 'P', 'S', 'F', 'Cl', 'Br', 'I', 'B', 'Si']
-                    if symbol not in valid_symbols:
-                        symbol = 'C'  # Défaut
-                    
-                    atoms_data.append((symbol, x, y, z))
-                except ValueError:
-                    continue
-        
-        if not atoms_data:
-            return None
-        
-        # Créer une molécule simple avec RDKit
-        mol = Chem.RWMol()
-        
-        # Ajouter les atomes
-        atom_indices = []
-        for symbol, x, y, z in atoms_data:
-            atom = Chem.Atom(symbol)
-            idx = mol.AddAtom(atom)
-            atom_indices.append(idx)
-        
-        # Créer un conformer avec les coordonnées
-        mol = mol.GetMol()
-        conf = Chem.Conformer(len(atoms_data))
-        
-        for i, (symbol, x, y, z) in enumerate(atoms_data):
-            conf.SetAtomPosition(i, (x, y, z))
-        
-        mol.AddConformer(conf)
-        
-        print(f"✅ Molécule créée avec {len(atoms_data)} atomes")
-        return mol
-        
-    except Exception as e:
-        print(f"❌ create_mol_from_atoms_only: {e}")
-        return None
 
 
 def manual_xyz_generation(mol):
@@ -687,7 +459,7 @@ def is_xyz_format(content: str) -> bool:
     try:
         # Première ligne doit être un nombre (count d'atomes)
         atom_count = int(lines[0].strip())
-        if atom_count <= 0 or atom_count > 10000:  # Limite raisonnable
+        if atom_count <= 0:
             return False
         
         # Vérifier qu'on a assez de lignes
@@ -695,8 +467,7 @@ def is_xyz_format(content: str) -> bool:
             return False
         
         # Vérifier quelques lignes d'atomes
-        atoms_checked = 0
-        for i in range(2, min(atom_count + 2, len(lines))):
+        for i in range(2, min(5, len(lines))):
             parts = lines[i].strip().split()
             if len(parts) < 4:  # Symbol X Y Z minimum
                 return False
@@ -706,15 +477,6 @@ def is_xyz_format(content: str) -> bool:
                 float(parts[1])
                 float(parts[2])
                 float(parts[3])
-                
-                # Vérifier que le premier élément ressemble à un symbole atomique
-                symbol = parts[0].strip()
-                if not symbol.isalpha() or len(symbol) > 2:
-                    return False
-                    
-                atoms_checked += 1
-                if atoms_checked >= 3:  # Vérifier seulement les 3 premiers atomes
-                    break
             except (ValueError, IndexError):
                 return False
         
@@ -766,35 +528,14 @@ def run_xtb():
         # Déterminer le format et convertir en XYZ si nécessaire
         if is_xyz_format(content):
             xyz_content = content
-            print("✅ Format XYZ détecté et validé")
-        elif "V2000" in content or "V3000" in content or "INDIGO" in content or "Ketcher" in content:
+        elif "V2000" in content or "V3000" in content or "INDIGO" in content:
             # Convertir MOL en XYZ
-            print("🔄 Format MOL détecté, conversion en cours...")
             xyz_content = robust_mol_to_xyz(content, "upload")
         else:
-            # Essayer de deviner le format basé sur le contenu
-            lines = content.strip().split('\n')
-            if len(lines) >= 3:
-                try:
-                    # Tenter de parser comme XYZ même sans détection formelle
-                    atom_count = int(lines[0].strip())
-                    if atom_count > 0 and len(lines) >= atom_count + 2:
-                        xyz_content = content
-                        print("✅ Format XYZ deviné et accepté")
-                    else:
-                        raise ValueError("Format non reconnu")
-                except:
-                    return jsonify({
-                        "success": False,
-                        "error": "Format de fichier non supporté. Utilisez XYZ ou MOL.",
-                        "hint": "Fichiers supportés: .xyz, .mol, .sdf"
-                    }), 400
-            else:
-                return jsonify({
-                    "success": False,
-                    "error": "Format de fichier non supporté. Utilisez XYZ ou MOL.",
-                    "detected_lines": len(lines) if 'lines' in locals() else 0
-                }), 400
+            return jsonify({
+                "success": False,
+                "error": "Format de fichier non supporté. Utilisez XYZ ou MOL."
+            }), 400
 
         # Exécuter XTB
         result = run_xtb_calculation(xyz_content)
@@ -817,58 +558,21 @@ def run_xtb_calculation(xyz_content):
         with open(xyz_file, "w") as f:
             f.write(xyz_content)
         
-        # Commande XTB avec options optimisées et multiples tentatives
-        cmd_variants = [
-            ["xtb", xyz_file, "--scc", "--gfn", "2", "--json"],  # Tentative 1: single-point avec JSON
-            ["xtb", xyz_file, "--scc", "--gfn2", "--json"],      # Tentative 2: --gfn2 au lieu de --gfn 2
-            ["xtb", xyz_file, "--scc", "--json"],               # Tentative 3: GFN par défaut
-            ["xtb", xyz_file, "--scc", "--gfn", "2"]            # Tentative 4: sans JSON (fallback)
-        ]
-        
-        result = None
-        cmd_used = None
-        
-        for i, cmd in enumerate(cmd_variants):
-            try:
-                print(f"🔧 Tentative XTB {i+1}: {' '.join(cmd)}")
-                # Exécuter XTB
-                result = subprocess.run(
-                    cmd, 
-                    cwd=temp_dir,
-                    capture_output=True,
-                    text=True,
-                    timeout=180  # 3 minutes max par tentative
-                )
-                cmd_used = cmd
-                
-                # Si le code de retour est 0, continuer avec cette commande
-                if result.returncode == 0:
-                    print(f"✅ XTB réussi avec: {' '.join(cmd)}")
-                    break
-                else:
-                    print(f"⚠️ XTB code {result.returncode}, essai suivant...")
-                    
-            except subprocess.TimeoutExpired:
-                print(f"⏱️ Timeout pour: {' '.join(cmd)}")
-                continue
-            except Exception as e:
-                print(f"❌ Erreur pour {' '.join(cmd)}: {e}")
-                continue
-        
-        if result is None:
-            return {
-                "success": False,
-                "error": "Aucune variante de commande XTB n'a fonctionné",
-                "files_created": []
-            }
+        # Commande XTB avec options optimisées
+        cmd = ["xtb", xyz_file, "--opt", "--gfn", "2", "--json"]
         
         try:
+            # Exécuter XTB
+            result = subprocess.run(
+                cmd, 
+                cwd=temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=300  # 5 minutes max
+            )
             
-            # Chercher les fichiers de résultats avec plus d'options
-            json_candidates = [
-                "xtbout.json", "output.json", "result.json", 
-                "xtb.json", "calculation.json", "results.json"
-            ]
+            # Chercher les fichiers de résultats
+            json_candidates = ["xtbout.json", "output.json", "result.json"]
             json_data = None
             json_file_found = None
             
@@ -878,162 +582,84 @@ def run_xtb_calculation(xyz_content):
             
             print(f"Fichiers créés par XTB: {files_created}")
             print(f"Fichiers JSON trouvés: {json_files}")
-            print(f"Commande utilisée: {' '.join(cmd_used)}")
             
             # Chercher le fichier JSON de résultats
-            all_json_candidates = json_candidates + json_files
-            for candidate in all_json_candidates:
+            for candidate in json_candidates + json_files:
                 json_path = os.path.join(temp_dir, candidate)
                 if os.path.exists(json_path):
                     try:
                         with open(json_path, "r") as f:
-                            content = f.read().strip()
-                            if content:  # Vérifier que le fichier n'est pas vide
-                                # Tentative de parsing JSON robuste
-                                try:
-                                    json_data = json.loads(content)
-                                    json_file_found = candidate
-                                    print(f"✅ JSON trouvé et parsé: {candidate}")
-                                    break
-                                except json.JSONDecodeError as json_err:
-                                    print(f"⚠️ Erreur JSON dans {candidate}: {json_err}")
-                                    # Essayer de nettoyer le JSON
-                                    try:
-                                        # Supprimer les caractères problématiques à la fin
-                                        lines = content.split('\n')
-                                        clean_lines = []
-                                        for line in lines:
-                                            if line.strip() and not line.strip().startswith('---'):
-                                                clean_lines.append(line)
-                                        clean_content = '\n'.join(clean_lines)
-                                        
-                                        # Assurer que le JSON se termine correctement
-                                        if not clean_content.rstrip().endswith('}'):
-                                            clean_content = clean_content.rstrip() + '\n}'
-                                        
-                                        json_data = json.loads(clean_content)
-                                        json_file_found = candidate
-                                        print(f"✅ JSON nettoyé et parsé: {candidate}")
-                                        break
-                                    except:
-                                        print(f"❌ Impossible de récupérer JSON depuis {candidate}")
-                                        continue
-                            else:
-                                print(f"⚠️ Fichier JSON vide: {candidate}")
-                    except Exception as e:
-                        print(f"⚠️ Erreur lecture {candidate}: {e}")
-                        continue
-            
-            # Récupérer la géométrie optimisée (plusieurs possibilités)
-            opt_xyz_candidates = ["xtbopt.xyz", "opt.xyz", "optimized.xyz", "molecule_opt.xyz"]
-            optimized_xyz = None
-            
-            for xyz_candidate in opt_xyz_candidates:
-                opt_xyz_file = os.path.join(temp_dir, xyz_candidate)
-                if os.path.exists(opt_xyz_file):
-                    try:
-                        with open(opt_xyz_file, "r") as f:
-                            optimized_xyz = f.read()
-                        print(f"✅ XYZ optimisé trouvé: {xyz_candidate}")
+                            json_data = json.load(f)
+                        json_file_found = candidate
                         break
-                    except Exception as e:
-                        print(f"⚠️ Erreur lecture {xyz_candidate}: {e}")
+                    except json.JSONDecodeError:
                         continue
+            
+            # Récupérer la géométrie optimisée
+            opt_xyz_file = os.path.join(temp_dir, "xtbopt.xyz")
+            optimized_xyz = None
+            if os.path.exists(opt_xyz_file):
+                with open(opt_xyz_file, "r") as f:
+                    optimized_xyz = f.read()
             
             if json_data:
                 response = {
                     "success": True,
                     "xtb_json": json_data,
-                    "stdout": result.stdout[-1000:] if result.stdout else "",
+                    "stdout": result.stdout[-1000:],
                     "stderr": result.stderr[-500:] if result.stderr else "",
                     "method": "XTB GFN2-xTB",
                     "json_file": json_file_found,
                     "return_code": result.returncode,
-                    "files_created": files_created,
-                    "command_used": ' '.join(cmd_used)
+                    "files_created": files_created
                 }
-                
-                # TOUJOURS inclure la géométrie XYZ originale au minimum
-                response["xyz"] = xyz_content  # Géométrie d'entrée
-                response["input_xyz"] = xyz_content  # Explicit
                 
                 if optimized_xyz:
                     response["optimized_xyz"] = optimized_xyz
-                    response["xyz"] = optimized_xyz  # Utiliser la version optimisée si disponible
-                    print("✅ Géométrie optimisée incluse dans la réponse")
-                else:
-                    print("⚠️ Pas de géométrie optimisée, utilisation de la géométrie d'entrée")
+                    response["xyz"] = optimized_xyz
                 
                 return response
             else:
-                # Parser les informations du stdout/stderr même sans JSON
+                # Parser les informations du stdout même sans JSON
                 energy_info = {}
-                properties = {}
-                
-                # Parser l'énergie totale
-                output_text = result.stdout + (result.stderr or "")
-                if "TOTAL ENERGY" in output_text:
-                    lines = output_text.split('\n')
+                if "TOTAL ENERGY" in result.stdout:
+                    lines = result.stdout.split('\n')
                     for line in lines:
-                        if "TOTAL ENERGY" in line and "Eh" in line:
+                        if "TOTAL ENERGY" in line:
                             try:
-                                parts = line.split()
-                                energy_idx = parts.index("TOTAL") + 2  # "TOTAL ENERGY" puis valeur
-                                energy = float(parts[energy_idx])
+                                energy = float(line.split()[-2])
                                 energy_info["total_energy"] = energy
                                 energy_info["unit"] = "Eh"
-                                print(f"✅ Énergie extraite: {energy} Eh")
-                                break
-                            except (ValueError, IndexError):
+                            except:
                                 pass
-                
-                # Parser d'autres propriétés disponibles
-                if "HOMO-LUMO GAP" in output_text:
-                    lines = output_text.split('\n')
-                    for line in lines:
-                        if "HOMO-LUMO GAP" in line:
-                            try:
-                                gap = float(line.split()[-2])
-                                properties["homo_lumo_gap"] = gap
-                                properties["gap_unit"] = "eV"
-                            except (ValueError, IndexError):
-                                pass
-                
-                # Créer un JSON de fallback avec les données disponibles
-                fallback_json = {
-                    "program": "xtb",
-                    "version": "unknown",
-                    "method": "GFN2-xTB",
-                    "properties": properties
-                }
-                
-                if energy_info:
-                    fallback_json.update(energy_info)
                 
                 return {
-                    "success": bool(optimized_xyz or energy_info),  # Succès partiel si on a au moins ça
-                    "error": "XTB n'a pas produit de fichier JSON valide" if not json_data else None,
-                    "xtb_json": fallback_json,  # JSON de fallback
-                    "stdout": result.stdout[-2000:] if result.stdout else "",
-                    "stderr": result.stderr[-1000:] if result.stderr else "",
+                    "success": False,
+                    "error": "XTB n'a pas produit de fichier JSON valide",
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
                     "return_code": result.returncode,
                     "files_created": files_created,
                     "energy_info": energy_info,
                     "optimized_xyz": optimized_xyz,
-                    "xyz": optimized_xyz if optimized_xyz else xyz_content,  # TOUJOURS retourner une géométrie
-                    "input_xyz": xyz_content,  # Géométrie d'entrée
-                    "partial_success": bool(optimized_xyz or energy_info),
-                    "command_used": ' '.join(cmd_used),
-                    "fallback_mode": True
+                    "partial_success": bool(optimized_xyz or energy_info)
                 }
                 
+        except subprocess.TimeoutExpired:
+            return {
+                "success": False,
+                "error": "Timeout XTB (>5min)"
+            }
+        except FileNotFoundError:
+            return {
+                "success": False,
+                "error": "XTB n'est pas installé ou pas dans le PATH"
+            }
         except Exception as e:
             return {
                 "success": False,
-                "error": f"Erreur durant l'exécution XTB: {str(e)}",
-                "exception": str(e),
-                "files_created": [],
-                "command_attempted": ' '.join(cmd_used) if 'cmd_used' in locals() else "unknown"
+                "error": f"Erreur XTB: {str(e)}",
+                "trace": traceback.format_exc()
             }
 
 
@@ -1087,30 +713,6 @@ def molfile_to_xyz():
                 'error': 'Fichier MOL vide'
             }), 400
         
-        # Debug: afficher les premières lignes du MOL reçu
-        print("🔍 MOL reçu (premières lignes):")
-        molfile_lines = molfile.split('\n')[:10]
-        for i, line in enumerate(molfile_lines):
-            print(f"  Ligne {i+1}: {repr(line)}")
-        
-        # Validation basique du format MOL
-        if 'V2000' not in molfile and 'V3000' not in molfile:
-            # Essayer d'ajouter les en-têtes manquants si nécessaire
-            lines = molfile.strip().split('\n')
-            if len(lines) >= 1 and lines[0].strip().isdigit():
-                # Semble être juste des données sans en-tête complet
-                enhanced_mol = f"IAM_Molecule\n  Generated by IAM\n\n{molfile}"
-                if 'V2000' not in enhanced_mol:
-                    # Ajouter V2000 à la ligne de comptage si manquant
-                    mol_lines = enhanced_mol.split('\n')
-                    if len(mol_lines) >= 4:
-                        counts_line = mol_lines[3]
-                        if 'V2000' not in counts_line:
-                            mol_lines[3] = counts_line.rstrip() + ' V2000'
-                            enhanced_mol = '\n'.join(mol_lines)
-                molfile = enhanced_mol
-                print("✅ En-têtes MOL ajoutés")
-        
         # Convertir avec la fonction robuste
         xyz = robust_mol_to_xyz(molfile, "molfile_endpoint")
         
@@ -1120,15 +722,10 @@ def molfile_to_xyz():
         })
         
     except Exception as e:
-        error_msg = str(e)
-        print(f"❌ Erreur molfile_to_xyz: {error_msg}")
-        
-        # Retourner une erreur plus informative
         return jsonify({
             'success': False,
-            'error': f"Conversion MOL→XYZ échouée: {error_msg}",
-            'details': traceback.format_exc(),
-            'hint': "Vérifiez que le fichier MOL est valide et bien formaté"
+            'error': str(e), 
+            'details': traceback.format_exc()
         }), 500
 
 
