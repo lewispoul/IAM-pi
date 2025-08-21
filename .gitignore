@@ -64,3 +64,6 @@ start_iam_with_api.sh
 agent_config.yaml
 start_iam_with_api.sh
 configure_openai.sh
+
+# ignore trash
+trash/
