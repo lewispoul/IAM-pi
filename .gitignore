@@ -56,3 +56,11 @@ webui/
 legacy*/
 duplicat*/
 miniconda.sh
+.env
+agent_config.yaml
+start_iam_with_api.sh
+.env
+*.env
+agent_config.yaml
+start_iam_with_api.sh
+configure_openai.sh
